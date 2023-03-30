@@ -62,7 +62,7 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// A header record within a chain file.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HeaderRecord {
     /// The chain score.
     score: usize,

@@ -33,7 +33,7 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// The sequence portion(s) of a header record.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Sequence {
     /// The chromosome name.
     chromosome_name: String,

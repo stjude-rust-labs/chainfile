@@ -10,7 +10,7 @@ use crate::record::HeaderRecord;
 use crate::Reader;
 
 /// An alignment data section.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AlignmentDataSection {
     header: HeaderRecord,
     alignment_data_records: Vec<AlignmentDataRecord>,

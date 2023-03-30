@@ -64,7 +64,7 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// An alignment data record within a chain file.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AlignmentDataRecord(usize, Option<usize>, Option<usize>, AlignmentDataRecordType);
 
 impl AlignmentDataRecord {

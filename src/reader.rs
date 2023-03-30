@@ -30,7 +30,7 @@ impl std::fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// A chain file reader.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Reader<T> {
     inner: T,
 }
