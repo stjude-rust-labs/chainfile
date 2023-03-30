@@ -238,7 +238,7 @@ where
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn sections<'a>(&'a mut self) -> AlignmentDataSections<'a, T> {
+    pub fn sections(&mut self) -> AlignmentDataSections<'_, T> {
         AlignmentDataSections::new(self)
     }
 }
