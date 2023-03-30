@@ -121,7 +121,7 @@ impl<'a, T> Iterator for AlignmentDataSections<'a, T>
 where
     T: BufRead,
 {
-    type Item = Result<AlignmentDataSection, ParseError>;
+    type Item = Result<AlignmentDataSection, Box<ParseError>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut section: Option<AlignmentDataSection> = None;
@@ -131,7 +131,7 @@ where
             // error occurs within the reader.
             let line = match self.reader.read_line() {
                 Ok(l) => l,
-                Err(err) => return Some(Err(ParseError::Reader(err))),
+                Err(err) => return Some(Err(Box::new(ParseError::Reader(err)))),
             };
 
             self.line_no += 1;
@@ -144,7 +144,9 @@ where
                 Some(l) => l,
                 None => match self.state {
                     State::InBetweenSections => return None,
-                    State::ReadingSection => return Some(Err(ParseError::AbruptEndInSection)),
+                    State::ReadingSection => {
+                        return Some(Err(Box::new(ParseError::AbruptEndInSection)))
+                    }
                 },
             };
 
@@ -182,7 +184,7 @@ where
     }
 }
 
-fn get_state(last: &State, line: &Line, line_no: usize) -> Result<State, ParseError> {
+fn get_state(last: &State, line: &Line, line_no: usize) -> Result<State, Box<ParseError>> {
     match (last, line) {
         (State::InBetweenSections, Line::Empty) => {
             // We're in between sections and we hit an empty line, we can just
@@ -197,17 +199,19 @@ fn get_state(last: &State, line: &Line, line_no: usize) -> Result<State, ParseEr
         (State::InBetweenSections, Line::AlignmentData(record)) => {
             // We found alignment data in between sections, this is not allowed
             // in the format.
-            Err(ParseError::AlignmentDataBetweenSections(record.clone()))
+            Err(Box::new(ParseError::AlignmentDataBetweenSections(
+                record.clone(),
+            )))
         }
         (State::ReadingSection, Line::Empty) => {
             // We found a blank line within an alignment data section, this is
             // not allowed in the format.
-            Err(ParseError::BlankLineInSection(line_no))
+            Err(Box::new(ParseError::BlankLineInSection(line_no)))
         }
         (State::ReadingSection, Line::Header(record)) => {
             // We found a header within a alignment data section, this is not
             // allowed in the format.
-            Err(ParseError::HeaderInSection(record.clone()))
+            Err(Box::new(ParseError::HeaderInSection(record.clone())))
         }
         (State::ReadingSection, Line::AlignmentData(record)) => {
             // We found alignment data in a section. We need to examine the
