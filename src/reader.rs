@@ -256,11 +256,6 @@ where
 ///
 /// This method is copied almost directly from noodles-gtf. I repurposed it
 /// because it captures pretty much exactly what I need to do for this reader.
-///
-/// # Examples
-///
-/// ```
-/// ```
 fn read_line<T>(reader: &mut T, buffer: &mut String) -> io::Result<usize>
 where
     T: BufRead,
