@@ -1,9 +1,12 @@
 [package]
-name = "chainfile"
-version = "0.1.0"
+authors = ["Clay McLeod <clay.l.mcleod@gmail.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache-2.0/MIT"
+name = "chainfile"
+rust-version = "1.68.0"
+publish = true
+description = "A crate for working with genomics chain files."
+version = "0.1.0"
 
 [dev-dependencies]
 flate2 = "1.0.25"
