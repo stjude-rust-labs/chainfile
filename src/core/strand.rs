@@ -1,4 +1,4 @@
-//! A strand within a header record.
+//! The strand upon which a coordinate is located.
 
 use std::io;
 use std::str::FromStr;

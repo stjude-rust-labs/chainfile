@@ -2,6 +2,7 @@
 
 use std::io::BufRead;
 
+use crate::liftover::StepThrough;
 use crate::line::Line;
 use crate::reader;
 use crate::record::alignment_data::AlignmentDataRecordType;
@@ -36,6 +37,11 @@ impl AlignmentDataSection {
     /// Gets the alignment data records for the alignment data section.
     pub fn alignment_data_records(&self) -> &Vec<AlignmentDataRecord> {
         &self.alignment_data_records
+    }
+
+    /// Gets a liftover step through for this alignment data section.
+    pub fn stepthrough(&self) -> StepThrough<'_> {
+        StepThrough::new(self)
     }
 }
 
@@ -233,7 +239,7 @@ pub mod tests {
 
     #[test]
     fn test_valid_sections() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
@@ -265,7 +271,7 @@ pub mod tests {
 
     #[test]
     fn test_invalid_sections_abrupt_end_in_section() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
@@ -280,14 +286,14 @@ pub mod tests {
 
     #[test]
     fn test_invalid_sections_blank_line_in_section() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n\n0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0\n\n0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
         let error = reader.sections().next().unwrap().unwrap_err();
         assert_eq!(
             error.to_string(),
-            "found blank line in alignment data section: line 3"
+            "found blank line in alignment data section: line 4"
         );
 
         Ok(())
@@ -296,7 +302,7 @@ pub mod tests {
     #[test]
     fn test_invalid_sections_header_in_section() -> Result<(), Box<dyn std::error::Error>> {
         let data =
-            b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\nchain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n0";
+            b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0\nchain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
