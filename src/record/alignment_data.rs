@@ -68,8 +68,30 @@ impl std::error::Error for ParseError {}
 pub struct AlignmentDataRecord(usize, Option<usize>, Option<usize>, AlignmentDataRecordType);
 
 impl AlignmentDataRecord {
-    /// Creates a new `AlignmentDataRecord`.
-    pub fn new(
+    /// Attempts to create a new [`AlignmentDataRecord`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::record::AlignmentDataRecord;
+    /// use chain::record::alignment_data::AlignmentDataRecordType;
+    ///
+    /// let record = AlignmentDataRecord::try_new(
+    ///     10,
+    ///     Some(0),
+    ///     Some(1),
+    ///     AlignmentDataRecordType::NonTerminating
+    /// )?;
+    ///
+    /// assert_eq!(record.size(), 10);
+    /// assert_eq!(record.dt(), &Some(0));
+    /// assert_eq!(record.dq(), &Some(1));
+    /// assert_eq!(record.record_type(), &AlignmentDataRecordType::NonTerminating);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn try_new(
         size: usize,
         dt: Option<usize>,
         dq: Option<usize>,
@@ -188,7 +210,7 @@ impl FromStr for AlignmentDataRecord {
             AlignmentDataRecordType::Terminating => (None, None),
         };
 
-        AlignmentDataRecord::new(size, dt, dq, record_type)
+        AlignmentDataRecord::try_new(size, dt, dq, record_type)
     }
 }
 
@@ -291,7 +313,7 @@ pub mod tests {
     #[test]
     fn test_invalid_nonterminating_dt() -> Result<(), Box<dyn std::error::Error>> {
         let err =
-            AlignmentDataRecord::new(9, None, Some(1), AlignmentDataRecordType::NonTerminating)
+            AlignmentDataRecord::try_new(9, None, Some(1), AlignmentDataRecordType::NonTerminating)
                 .unwrap_err();
 
         assert_eq!(
@@ -305,7 +327,7 @@ pub mod tests {
     #[test]
     fn test_invalid_nonterminating_dq() -> Result<(), Box<dyn std::error::Error>> {
         let err =
-            AlignmentDataRecord::new(9, Some(0), None, AlignmentDataRecordType::NonTerminating)
+            AlignmentDataRecord::try_new(9, Some(0), None, AlignmentDataRecordType::NonTerminating)
                 .unwrap_err();
 
         assert_eq!(
@@ -318,8 +340,9 @@ pub mod tests {
 
     #[test]
     fn test_invalid_terminating_dt() -> Result<(), Box<dyn std::error::Error>> {
-        let err = AlignmentDataRecord::new(9, Some(0), None, AlignmentDataRecordType::Terminating)
-            .unwrap_err();
+        let err =
+            AlignmentDataRecord::try_new(9, Some(0), None, AlignmentDataRecordType::Terminating)
+                .unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -331,8 +354,9 @@ pub mod tests {
 
     #[test]
     fn test_invalid_terminating_dq() -> Result<(), Box<dyn std::error::Error>> {
-        let err = AlignmentDataRecord::new(9, None, Some(1), AlignmentDataRecordType::Terminating)
-            .unwrap_err();
+        let err =
+            AlignmentDataRecord::try_new(9, None, Some(1), AlignmentDataRecordType::Terminating)
+                .unwrap_err();
 
         assert_eq!(
             err.to_string(),
@@ -344,8 +368,12 @@ pub mod tests {
 
     #[test]
     fn test_nonterminating_alignment_data_display() -> Result<(), Box<dyn std::error::Error>> {
-        let alignment =
-            AlignmentDataRecord::new(9, Some(1), Some(0), AlignmentDataRecordType::NonTerminating)?;
+        let alignment = AlignmentDataRecord::try_new(
+            9,
+            Some(1),
+            Some(0),
+            AlignmentDataRecordType::NonTerminating,
+        )?;
 
         assert_eq!(alignment.to_string(), "9\t1\t0");
 
@@ -355,7 +383,7 @@ pub mod tests {
     #[test]
     fn test_terminating_alignment_data_display() -> Result<(), Box<dyn std::error::Error>> {
         let alignment =
-            AlignmentDataRecord::new(9, None, None, AlignmentDataRecordType::Terminating)?;
+            AlignmentDataRecord::try_new(9, None, None, AlignmentDataRecordType::Terminating)?;
 
         assert_eq!(alignment.to_string(), "9");
 

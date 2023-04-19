@@ -2,8 +2,8 @@
 
 use std::num::ParseIntError;
 
-use crate::record::header::strand::ParseStrandError;
-use crate::record::header::strand::Strand;
+use crate::core::strand::ParseStrandError;
+use crate::core::Strand;
 use crate::record::header::HEADER_DELIMITER;
 
 /// Errors associated with parsing a sequence.
@@ -117,7 +117,7 @@ impl Sequence {
     ///
     /// ```
     /// use chainfile as chain;
-    /// use chain::record::header::strand::Strand;
+    /// use chain::core::Strand;
     ///
     /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
     ///

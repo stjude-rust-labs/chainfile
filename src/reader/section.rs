@@ -2,9 +2,15 @@
 
 use std::io::BufRead;
 
+use crate::core::coordinate;
+use crate::core::Coordinate;
+use crate::core::Strand;
+use crate::liftover::stepthrough;
+use crate::liftover::StepThrough;
 use crate::line::Line;
 use crate::reader;
 use crate::record::alignment_data::AlignmentDataRecordType;
+use crate::record::header::Sequence;
 use crate::record::AlignmentDataRecord;
 use crate::record::HeaderRecord;
 use crate::Reader;
@@ -17,6 +23,7 @@ pub struct AlignmentDataSection {
 }
 
 impl AlignmentDataSection {
+    /// Creates a new [`AlignmentDataSection`].
     fn new(header: HeaderRecord) -> Self {
         Self {
             header,
@@ -24,21 +31,277 @@ impl AlignmentDataSection {
         }
     }
 
+    /// Adds an alignment record to the [`AlignmentDataSection`].
     fn add_alignment_data_record(&mut self, record: AlignmentDataRecord) {
         self.alignment_data_records.push(record);
     }
 
     /// Gets the header for the alignment data section.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::record::HeaderRecord;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// assert_eq!(section.header(), &"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1".parse::<HeaderRecord>()?);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn header(&self) -> &HeaderRecord {
         &self.header
     }
 
     /// Gets the alignment data records for the alignment data section.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::collections::VecDeque;
+    ///
+    /// use chainfile as chain;
+    /// use chain::record::AlignmentDataRecord;
+    /// use chain::record::alignment_data::AlignmentDataRecordType;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// let mut records = section.alignment_data_records()
+    ///     .into_iter()
+    ///     .cloned()
+    ///     .collect::<VecDeque<AlignmentDataRecord>>();
+    /// assert_eq!(records.len(), 2);
+    ///
+    /// // SAFETY: we just checked that the length was two, so this first pop will succeed.
+    /// let record = records.pop_front().unwrap();
+    /// assert_eq!(
+    ///     record,
+    ///     AlignmentDataRecord::try_new(3, Some(0), Some(1), AlignmentDataRecordType::NonTerminating)?
+    /// );
+    ///
+    /// // SAFETY: we just checked that the length was two, so this second pop will succeed.
+    /// let record = records.pop_front().unwrap();
+    /// assert_eq!(
+    ///     record,
+    ///     AlignmentDataRecord::try_new(1, None, None, AlignmentDataRecordType::Terminating)?
+    /// );
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn alignment_data_records(&self) -> &Vec<AlignmentDataRecord> {
         &self.alignment_data_records
     }
+
+    /// Gets a liftover step through for this alignment data section.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::collections::VecDeque;
+    ///
+    /// use chainfile as chain;
+    /// use chain::core::Interval;
+    /// use chain::core::Position;
+    /// use chain::core::Strand;
+    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    ///
+    /// let mut stepthrough = section.stepthrough()?.collect::<VecDeque<_>>();
+    /// assert_eq!(stepthrough.len(), 2);
+    ///
+    /// // SAFETY: we just checked that the length was two, so this first pop will succeed.
+    /// let result = stepthrough.pop_front().unwrap()?;
+    /// let expected = ContiguousIntervalPair::try_new("seq0:0-3".parse::<Interval>()?, "seq0:4-1".parse::<Interval>()?)?;
+    /// assert_eq!(result, expected);
+    ///
+    /// // SAFETY: we just checked that the length was two, so this second pop will succeed.
+    /// let result = stepthrough.pop_front().unwrap()?;
+    /// let expected = ContiguousIntervalPair::try_new("seq0:3-4".parse::<Interval>()?, "seq0:0-$".parse::<Interval>()?)?;
+    /// assert_eq!(result, expected);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn stepthrough(&self) -> Result<StepThrough<'_>, stepthrough::Error> {
+        StepThrough::new(self)
+    }
+
+    /// Gets the starting coordinate for the reference interval specified in the
+    /// section header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::core::Position;
+    /// use chain::core::Strand;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// let start = section.reference_start_coordinate()?;
+    /// assert_eq!(start.contig(), &String::from("seq0"));
+    /// assert_eq!(start.position(), &Position::new(0));
+    /// assert_eq!(start.strand(), &Strand::Positive);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn reference_start_coordinate(&self) -> Result<Coordinate, coordinate::Error> {
+        start_coordinate(self.header.reference_sequence())
+    }
+
+    /// Gets the ending coordinate for the reference interval specified in the
+    /// section header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::core::Position;
+    /// use chain::core::Strand;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// let start = section.reference_end_coordinate()?;
+    /// assert_eq!(start.contig(), &String::from("seq0"));
+    /// assert_eq!(start.position(), &Position::new(4));
+    /// assert_eq!(start.strand(), &Strand::Positive);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn reference_end_coordinate(&self) -> Result<Coordinate, coordinate::Error> {
+        end_coordinate(self.header.reference_sequence())
+    }
+
+    /// Gets the starting coordinate for the query interval specified in the
+    /// section header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::core::Position;
+    /// use chain::core::Strand;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// let start = section.query_start_coordinate()?;
+    /// assert_eq!(start.contig(), &String::from("seq0"));
+    /// assert_eq!(start.position(), &Position::new(4));
+    /// assert_eq!(start.strand(), &Strand::Negative);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn query_start_coordinate(&self) -> Result<Coordinate, coordinate::Error> {
+        start_coordinate(self.header.query_sequence())
+    }
+
+    /// Gets the ending coordinate for the query interval specified in the
+    /// section header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::core::Position;
+    /// use chain::core::Strand;
+    /// use std::io::{self, BufRead};
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chain::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    /// let start = section.query_end_coordinate()?;
+    /// assert_eq!(start.contig(), &String::from("seq0"));
+    /// assert_eq!(start.position(), &Position::negative_bound());
+    /// assert_eq!(start.strand(), &Strand::Negative);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn query_end_coordinate(&self) -> Result<Coordinate, coordinate::Error> {
+        end_coordinate(self.header.query_sequence())
+    }
 }
 
+fn start_coordinate(sequence: &Sequence) -> Result<Coordinate, coordinate::Error> {
+    let coordinate = Coordinate::try_new(
+        sequence.chromosome_name(),
+        sequence.alignment_start(),
+        sequence.strand().clone(),
+    )?;
+
+    match sequence.strand() {
+        Strand::Positive => Ok(coordinate),
+        Strand::Negative => coordinate.compliment_position(sequence.chromosome_size()),
+    }
+}
+
+fn end_coordinate(sequence: &Sequence) -> Result<Coordinate, coordinate::Error> {
+    let coordinate = Coordinate::try_new(
+        sequence.chromosome_name(),
+        sequence.alignment_end(),
+        sequence.strand().clone(),
+    )?;
+
+    match sequence.strand() {
+        Strand::Positive => Ok(coordinate),
+        Strand::Negative => coordinate.compliment_position(sequence.chromosome_size()),
+    }
+}
 #[derive(Debug)]
 enum State {
     InBetweenSections,
@@ -233,7 +496,7 @@ pub mod tests {
 
     #[test]
     fn test_valid_sections() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
@@ -265,7 +528,7 @@ pub mod tests {
 
     #[test]
     fn test_invalid_sections_abrupt_end_in_section() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
@@ -280,14 +543,14 @@ pub mod tests {
 
     #[test]
     fn test_invalid_sections_blank_line_in_section() -> Result<(), Box<dyn std::error::Error>> {
-        let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n\n0";
+        let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0\n\n0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);
         let error = reader.sections().next().unwrap().unwrap_err();
         assert_eq!(
             error.to_string(),
-            "found blank line in alignment data section: line 3"
+            "found blank line in alignment data section: line 4"
         );
 
         Ok(())
@@ -296,7 +559,7 @@ pub mod tests {
     #[test]
     fn test_invalid_sections_header_in_section() -> Result<(), Box<dyn std::error::Error>> {
         let data =
-            b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\nchain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n0";
+            b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1\t0\t0\nchain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n0";
         let cursor = io::Cursor::new(data);
 
         let mut reader = Reader::new(cursor);

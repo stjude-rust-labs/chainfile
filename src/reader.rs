@@ -5,9 +5,11 @@ use std::iter;
 
 use crate::line;
 use crate::line::Line;
-use crate::reader::section::AlignmentDataSections;
 
 pub mod section;
+
+pub use section::AlignmentDataSection;
+pub use section::AlignmentDataSections;
 
 /// An error related to the parsing of a chain file.
 #[derive(Debug)]
@@ -31,7 +33,10 @@ impl std::error::Error for ParseError {}
 
 /// A chain file reader.
 #[derive(Clone, Debug)]
-pub struct Reader<T> {
+pub struct Reader<T>
+where
+    T: BufRead,
+{
     inner: T,
 }
 
@@ -46,7 +51,7 @@ where
     /// ```
     /// use chainfile as chain;
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     ///
     /// let reader = chain::Reader::new(&data[..]);
     /// ```
@@ -62,7 +67,7 @@ where
     /// use chainfile as chain;
     /// use std::io;
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     ///
     /// let reader = chain::Reader::new(cursor);
@@ -80,7 +85,7 @@ where
     /// use chainfile as chain;
     /// use std::io::{self, Read};
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2 0 0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     ///
     /// let mut reader = chain::Reader::new(cursor);
@@ -101,7 +106,7 @@ where
     /// use chainfile as chain;
     /// use std::io::{self, BufRead};
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     ///
     /// let reader = chain::Reader::new(cursor);
@@ -109,10 +114,10 @@ where
     ///
     /// assert_eq!(
     ///     lines.next(),
-    ///     Some(String::from("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1"))
+    ///     Some(String::from("chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1"))
     /// );
-    /// assert_eq!(lines.next(), Some(String::from("2\t0\t0")));
-    /// assert_eq!(lines.next(), Some(String::from("0")));
+    /// assert_eq!(lines.next(), Some(String::from("3\t0\t1")));
+    /// assert_eq!(lines.next(), Some(String::from("1")));
     /// assert_eq!(lines.next(), None);
     /// ```
     pub fn into_inner(self) -> T {
@@ -127,20 +132,20 @@ where
     /// use chainfile as chain;
     /// use std::io;
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///
     /// let mut buffer = String::new();
     ///
     /// assert_eq!(reader.read_line_raw(&mut buffer)?, 36);
-    /// assert_eq!(buffer, "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1");
+    /// assert_eq!(buffer, "chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1");
     ///
     /// assert_eq!(reader.read_line_raw(&mut buffer)?, 6);
-    /// assert_eq!(buffer, "2\t0\t0");
+    /// assert_eq!(buffer, "3\t0\t1");
     ///
     /// assert_eq!(reader.read_line_raw(&mut buffer)?, 1);
-    /// assert_eq!(buffer, "0");
+    /// assert_eq!(buffer, "1");
     ///
     /// assert_eq!(reader.read_line_raw(&mut buffer)?, 0);
     ///
@@ -159,7 +164,7 @@ where
     /// use std::io;
     /// use chain::line::Line;
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///
@@ -193,7 +198,7 @@ where
     /// use chainfile as chain;
     /// use std::io;
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///
@@ -229,7 +234,7 @@ where
     /// use chainfile as chain;
     /// use std::io::{self, BufRead};
     ///
-    /// let data = b"chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1\n2\t0\t0\n0";
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///

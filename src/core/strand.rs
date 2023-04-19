@@ -1,4 +1,4 @@
-//! A strand within a header record.
+//! The strand upon which a coordinate is located.
 
 use std::io;
 use std::str::FromStr;
@@ -16,12 +16,39 @@ impl std::fmt::Display for ParseStrandError {
 impl std::error::Error for ParseStrandError {}
 
 /// The strand of a header record.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Strand {
     /// The positive strand (`+`).
     Positive,
     /// The negative strand (`-`).
     Negative,
+}
+
+impl Strand {
+    /// Compliments a strand.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chainfile as chain;
+    /// use chain::core::Strand;
+    ///
+    /// // Positive compliment
+    ///
+    /// let strand = Strand::Positive;
+    /// assert_eq!(strand.compliment(), Strand::Negative);
+    ///
+    /// // Negative compliment
+    ///
+    /// let strand = Strand::Negative;
+    /// assert_eq!(strand.compliment(), Strand::Positive);
+    /// ```
+    pub fn compliment(self) -> Strand {
+        match self {
+            Strand::Positive => Strand::Negative,
+            Strand::Negative => Strand::Positive,
+        }
+    }
 }
 
 impl FromStr for Strand {

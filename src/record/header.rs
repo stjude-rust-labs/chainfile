@@ -1,7 +1,6 @@
 //! A header record.
 
 pub mod sequence;
-pub mod strand;
 
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -32,6 +31,8 @@ pub enum ParseError {
     InvalidQuerySequence(sequence::ParseError),
     /// An invalid id.
     InvalidId(ParseIntError),
+    /// The end position exceeds the size of the chromosome.
+    EndPositionExceedsSize(String, usize, usize),
 }
 
 impl std::fmt::Display for ParseError {
@@ -55,6 +56,11 @@ impl std::fmt::Display for ParseError {
             }
             ParseError::InvalidQuerySequence(err) => write!(f, "invalid query sequence: {}", err),
             ParseError::InvalidId(err) => write!(f, "invalid id: {}", err),
+            ParseError::EndPositionExceedsSize(chrom, pos, size) => write!(
+                f,
+                "the end position ({}) exceeds the size of the chromosome {} ({})",
+                pos, chrom, size
+            ),
         }
     }
 }
@@ -98,8 +104,8 @@ impl HeaderRecord {
     ///
     /// ```
     /// use chainfile as chain;
+    /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
-    /// use chain::record::header::strand::Strand;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -120,8 +126,8 @@ impl HeaderRecord {
     ///
     /// ```
     /// use chainfile as chain;
+    /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
-    /// use chain::record::header::strand::Strand;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -142,8 +148,8 @@ impl HeaderRecord {
     ///
     /// ```
     /// use chainfile as chain;
+    /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
-    /// use chain::record::header::strand::Strand;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -176,6 +182,22 @@ impl FromStr for HeaderRecord {
             .map_err(ParseError::InvalidQuerySequence)?;
         let id = parts[12].parse().map_err(ParseError::InvalidId)?;
 
+        if reference_sequence.chromosome_size() < reference_sequence.alignment_end() {
+            return Err(ParseError::EndPositionExceedsSize(
+                reference_sequence.chromosome_name().clone(),
+                reference_sequence.alignment_end(),
+                reference_sequence.chromosome_size(),
+            ));
+        }
+
+        if query_sequence.chromosome_size() < query_sequence.alignment_end() {
+            return Err(ParseError::EndPositionExceedsSize(
+                query_sequence.chromosome_name().clone(),
+                query_sequence.alignment_end(),
+                query_sequence.chromosome_size(),
+            ));
+        }
+
         Ok(HeaderRecord {
             score,
             reference_sequence,
@@ -206,7 +228,7 @@ impl std::fmt::Display for HeaderRecord {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::record::header::strand::Strand;
+    use crate::core::Strand;
 
     use super::*;
 
@@ -299,6 +321,30 @@ pub mod tests {
             .parse::<HeaderRecord>()
             .unwrap_err();
         assert_eq!(err.to_string(), "invalid id: invalid digit found in string");
+        Ok(())
+    }
+
+    #[test]
+    fn test_end_is_greater_than_size_reference() -> Result<(), Box<dyn std::error::Error>> {
+        let err = "chain 0 seq0 2 + 0 3 seq0 2 - 0 1 1"
+            .parse::<HeaderRecord>()
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "the end position (3) exceeds the size of the chromosome seq0 (2)"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_end_is_greater_than_size_query() -> Result<(), Box<dyn std::error::Error>> {
+        let err = "chain 0 seq0 2 + 0 1 seq0 2 - 0 3 1"
+            .parse::<HeaderRecord>()
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "the end position (3) exceeds the size of the chromosome seq0 (2)"
+        );
         Ok(())
     }
 
