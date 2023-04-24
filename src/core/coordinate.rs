@@ -349,7 +349,6 @@ impl Coordinate {
     /// assert_eq!(result.position(), &Position::new(0));
     /// assert_eq!(result.strand(), &Strand::Negative);
     ///
-    ///
     /// // Positive-stranded underflow
     ///
     /// let coordinate = Coordinate::try_new("seq0", 0, Strand::Positive)?;
