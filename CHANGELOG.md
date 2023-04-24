@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 04-24-2023
+
+### Added
+
+* Adds liftover capabilities and related examples.
+
 ## 0.1.0 — 03-30-2023
 
 ### Added
