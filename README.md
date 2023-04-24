@@ -23,7 +23,7 @@
   <p align="center">
     A crate for working with genomics chain files.
     <br />
-    <a href="https://github.com/stjude-rust-labs/chainfile/wiki"><strong>Explore the docs »</strong></a>
+    <a href="https://docs.rs/chainfile"><strong>Explore the docs »</strong></a>
     <br />
     <br />
     <a href="https://github.com/stjude-rust-labs/chainfile/issues/new?assignees=&title=Descriptive%20Title&labels=enhancement">Request Feature</a>
