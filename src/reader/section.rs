@@ -286,7 +286,7 @@ fn start_coordinate(sequence: &Sequence) -> Result<Coordinate, coordinate::Error
 
     match sequence.strand() {
         Strand::Positive => Ok(coordinate),
-        Strand::Negative => coordinate.compliment_position(sequence.chromosome_size()),
+        Strand::Negative => coordinate.complement_position(sequence.chromosome_size()),
     }
 }
 
@@ -299,7 +299,7 @@ fn end_coordinate(sequence: &Sequence) -> Result<Coordinate, coordinate::Error> 
 
     match sequence.strand() {
         Strand::Positive => Ok(coordinate),
-        Strand::Negative => coordinate.compliment_position(sequence.chromosome_size()),
+        Strand::Negative => coordinate.complement_position(sequence.chromosome_size()),
     }
 }
 #[derive(Debug)]

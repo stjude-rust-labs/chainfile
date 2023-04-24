@@ -25,7 +25,7 @@ pub enum Strand {
 }
 
 impl Strand {
-    /// Compliments a strand.
+    /// Complements a strand.
     ///
     /// # Examples
     ///
@@ -33,17 +33,17 @@ impl Strand {
     /// use chainfile as chain;
     /// use chain::core::Strand;
     ///
-    /// // Positive compliment
+    /// // Positive complement
     ///
     /// let strand = Strand::Positive;
-    /// assert_eq!(strand.compliment(), Strand::Negative);
+    /// assert_eq!(strand.complement(), Strand::Negative);
     ///
-    /// // Negative compliment
+    /// // Negative complement
     ///
     /// let strand = Strand::Negative;
-    /// assert_eq!(strand.compliment(), Strand::Positive);
+    /// assert_eq!(strand.complement(), Strand::Positive);
     /// ```
-    pub fn compliment(self) -> Strand {
+    pub fn complement(self) -> Strand {
         match self {
             Strand::Positive => Strand::Negative,
             Strand::Negative => Strand::Positive,

@@ -25,7 +25,7 @@
 //! regions of the reference and query genomes that are defined by the alignment
 //! data section. The translation between a raw alignment data records and this
 //! mapping can be tricky, especially considering gotchas such as coordinates on
-//! the reverse strand being stored as the reverse compliment of the sequence.
+//! the reverse strand being stored as the reverse complement of the sequence.
 //! Instead of computing these yourself, you should use the
 //! [`liftover::StepThrough`] facility that can be obtained from each alignment
 //! data section via [`reader::AlignmentDataSection::stepthrough()`].

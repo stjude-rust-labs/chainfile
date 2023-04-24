@@ -546,7 +546,7 @@ impl Coordinate {
         }
     }
 
-    /// compliment_positions the position with respect to some chromsome size.
+    /// Complements the position with respect to some chromsome size.
     ///
     /// This method _does_ handle the case when the negative bound should be
     /// returned.
@@ -562,27 +562,27 @@ impl Coordinate {
     ///
     /// // Positive-strand
     /// let coordinate = Coordinate::try_new("seq0", 5, Strand::Positive)?;
-    /// let inverted = coordinate.compliment_position(16)?;
+    /// let inverted = coordinate.complement_position(16)?;
     /// assert_eq!(inverted, Coordinate::try_new("seq0", 10, Strand::Positive)?);
     ///
     /// // Negative-strand
     /// let coordinate = Coordinate::try_new("seq0", 5, Strand::Negative)?;
-    /// let inverted = coordinate.compliment_position(16)?;
+    /// let inverted = coordinate.complement_position(16)?;
     /// assert_eq!(inverted, Coordinate::try_new("seq0", 10, Strand::Negative)?);
     ///
     /// // Zero-based to negative-bound
     /// let coordinate = Coordinate::try_new("seq0", 16, Strand::Negative)?;
-    /// let inverted = coordinate.compliment_position(16)?;
+    /// let inverted = coordinate.complement_position(16)?;
     /// assert_eq!(inverted, Coordinate::negative_bound("seq0"));
     ///
     /// // Negative-bound to zero-based
     /// let coordinate = Coordinate::negative_bound("seq0");
-    /// let inverted = coordinate.compliment_position(16)?;
+    /// let inverted = coordinate.complement_position(16)?;
     /// assert_eq!(inverted, Coordinate::try_new("seq0", 16, Strand::Negative)?);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn compliment_position(self, contig_size: usize) -> Result<Coordinate, Error> {
+    pub fn complement_position(self, contig_size: usize) -> Result<Coordinate, Error> {
         let position = match self.position() {
             Position::ZeroBased(position) => position,
             Position::NegativeBound => {
