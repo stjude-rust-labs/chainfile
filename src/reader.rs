@@ -196,14 +196,14 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io;
+    /// use std::io::{self, BufRead};
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///
-    /// let sections = reader.sections().map(|result| result.unwrap()).collect::<Vec<_>>();
-    /// assert_eq!(sections.len(), 1);
+    /// let lines = reader.lines().collect::<Vec<_>>();
+    /// assert_eq!(lines.len(), 3);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -232,14 +232,14 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io::{self, BufRead};
+    /// use std::io;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     /// let mut reader = chain::Reader::new(cursor);
     ///
-    /// let lines = reader.lines().collect::<Vec<_>>();
-    /// assert_eq!(lines.len(), 3);
+    /// let sections = reader.sections().map(|result| result.unwrap()).collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
