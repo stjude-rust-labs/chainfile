@@ -52,7 +52,6 @@ where
     /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    ///
     /// let reader = chain::Reader::new(&data[..]);
     /// ```
     pub fn new(inner: T) -> Self {
@@ -83,12 +82,10 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io::{self, Read};
+    /// use std::io::Read;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    ///
-    /// let mut reader = chain::Reader::new(cursor);
+    /// let mut reader = chain::Reader::new(&data[..]);
     /// let mut buffer = vec![0; data.len()];
     ///
     /// reader.inner_mut().read_exact(&mut buffer).unwrap();
@@ -104,12 +101,10 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io::{self, BufRead};
+    /// use std::io::BufRead;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    ///
-    /// let reader = chain::Reader::new(cursor);
+    /// let reader = chain::Reader::new(&data[..]);
     /// let mut lines = reader.into_inner().lines().map(|line| line.unwrap());
     ///
     /// assert_eq!(
@@ -133,8 +128,7 @@ where
     /// use std::io;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    /// let mut reader = chain::Reader::new(cursor);
+    /// let mut reader = chain::Reader::new(&data[..]);
     ///
     /// let mut buffer = String::new();
     ///
@@ -165,8 +159,7 @@ where
     /// use chain::line::Line;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    /// let mut reader = chain::Reader::new(cursor);
+    /// let mut reader = chain::Reader::new(&data[..]);
     ///
     /// assert!(matches!(reader.read_line()?, Some(Line::Header(_))));
     /// assert!(matches!(reader.read_line()?, Some(Line::AlignmentData(_))));
@@ -196,11 +189,10 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io::{self, BufRead};
+    /// use std::io::BufRead;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    /// let mut reader = chain::Reader::new(cursor);
+    /// let mut reader = chain::Reader::new(&data[..]);
     ///
     /// let lines = reader.lines().collect::<Vec<_>>();
     /// assert_eq!(lines.len(), 3);
@@ -232,11 +224,9 @@ where
     ///
     /// ```
     /// use chainfile as chain;
-    /// use std::io;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let cursor = io::Cursor::new(data);
-    /// let mut reader = chain::Reader::new(cursor);
+    /// let mut reader = chain::Reader::new(&data[..]);
     ///
     /// let sections = reader.sections().map(|result| result.unwrap()).collect::<Vec<_>>();
     /// assert_eq!(sections.len(), 1);
