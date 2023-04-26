@@ -50,11 +50,33 @@ impl Coordinate {
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chain::core::coordinate::Error;
+    ///
+    /// // Positive-stranded
     ///
     /// let coordinate = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// assert_eq!(coordinate.contig(), &String::from("seq0"));
     /// assert_eq!(coordinate.position(), &Position::new(0));
     /// assert_eq!(coordinate.strand(), &Strand::Positive);
+    ///
+    /// // Negative-stranded
+    ///
+    /// let coordinate = Coordinate::try_new("seq0", 0, Strand::Negative)?;
+    /// assert_eq!(coordinate.contig(), &String::from("seq0"));
+    /// assert_eq!(coordinate.position(), &Position::new(0));
+    /// assert_eq!(coordinate.strand(), &Strand::Negative);
+    ///
+    /// // Negative-bound
+    ///
+    /// let coordinate = Coordinate::try_new("seq0", Position::negative_bound(), Strand::Negative)?;
+    /// assert_eq!(coordinate.contig(), &String::from("seq0"));
+    /// assert_eq!(coordinate.position(), &Position::negative_bound());
+    /// assert_eq!(coordinate.strand(), &Strand::Negative);
+    ///
+    /// // Attempting to create negative-bound on positive strand
+    ///
+    /// let err = Coordinate::try_new("seq0", Position::negative_bound(), Strand::Positive).unwrap_err();
+    /// assert_eq!(err, Error::NegativeBoundOnNonNegativeStrand);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
