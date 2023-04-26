@@ -573,7 +573,10 @@ impl Coordinate {
     /// Complements the position with respect to some chromosome size.
     ///
     /// This method _does_ handle the case when the negative bound should be
-    /// returned.
+    /// returned. Note that the strand is _not_ complemented, only the position
+    /// is. This is useful when working with chain files, as the chain file will
+    /// store the position of the reverse compliment of a sequence without
+    /// complementing the strand.
     ///
     /// # Examples
     ///
