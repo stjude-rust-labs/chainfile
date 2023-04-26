@@ -570,7 +570,7 @@ impl Coordinate {
         }
     }
 
-    /// Complements the position with respect to some chromsome size.
+    /// Complements the position with respect to some chromosome size.
     ///
     /// This method _does_ handle the case when the negative bound should be
     /// returned.
