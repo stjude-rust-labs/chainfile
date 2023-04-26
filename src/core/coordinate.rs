@@ -440,6 +440,8 @@ impl Coordinate {
     /// let interval = "seq0:0-10".parse::<Interval>()?;
     /// let result = coordinate.move_forward_checked_bounds(10, &interval);
     ///
+    /// assert_eq!(result, None);
+    ///
     /// // Negative-bound that _does not_ fall within interval
     /// // (and also would not move forward due to underflow).
     ///
