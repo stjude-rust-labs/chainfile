@@ -9,7 +9,7 @@ description = "A crate for working with genomics chain files."
 homepage = "https://github.com/stjude-rust-labs/chainfile"
 repository = "https://github.com/stjude-rust-labs/chainfile"
 documentation = "https://docs.rs/chainfile"
-version = "0.2.0"
+version = "0.2.1"
 
 [dev-dependencies]
 flate2 = "1.0.25"

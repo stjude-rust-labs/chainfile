@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 09-09-2023
+
+### Fixes
+
+* Checks strand equality before performing liftover in `chainfile::liftover::Machine`.
+
 ## 0.2.0 — 04-24-2023
 
 ### Added
