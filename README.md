@@ -86,7 +86,7 @@ cargo clippy --all-features
 cargo fmt --check
 ```
 
-## Supported Rust Version (SRV)
+## Minumum Supported Rust Version (MSRV)
 
 This crate is designed to work with Rust version 1.72.0 or later. It may, by
 happenstance, work with earlier versions of Rust.
