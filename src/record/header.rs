@@ -86,8 +86,8 @@ impl HeaderRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::record::HeaderRecord;
+    /// use chainfile as chain;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -103,9 +103,9 @@ impl HeaderRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
+    /// use chainfile as chain;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -125,9 +125,9 @@ impl HeaderRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
+    /// use chainfile as chain;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -147,9 +147,9 @@ impl HeaderRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Strand;
     /// use chain::record::HeaderRecord;
+    /// use chainfile as chain;
     ///
     /// let header = "chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse::<HeaderRecord>()?;
     ///
@@ -228,9 +228,8 @@ impl std::fmt::Display for HeaderRecord {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::core::Strand;
-
     use super::*;
+    use crate::core::Strand;
 
     #[test]
     pub fn test_parsing_header_record() -> Result<(), Box<dyn std::error::Error>> {

@@ -116,8 +116,8 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
     ///

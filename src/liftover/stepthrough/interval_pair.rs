@@ -41,9 +41,9 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Interval;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use chainfile as chain;
     ///
     /// let reference = "seq0:0-1000".parse::<Interval>()?;
     /// let query = "seq1:0-1000".parse::<Interval>()?;
@@ -67,9 +67,9 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Interval;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use chainfile as chain;
     ///
     /// let reference = "seq0:0-1000".parse::<Interval>()?;
     /// let query = "seq1:0-1000".parse::<Interval>()?;
@@ -88,9 +88,9 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Interval;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use chainfile as chain;
     ///
     /// let reference = "seq0:0-1000".parse::<Interval>()?;
     /// let query = "seq1:0-1000".parse::<Interval>()?;
@@ -110,11 +110,11 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded to positive-stranded
     ///
@@ -150,16 +150,17 @@ impl ContiguousIntervalPair {
     }
 
     /// Consumes self to clamp an interval pair to the specified `interval` for
-    /// the reference interval. The query interval is similarly lifted over and clamped.
+    /// the reference interval. The query interval is similarly lifted over and
+    /// clamped.
     ///
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded to positive-stranded
     ///
@@ -170,10 +171,22 @@ impl ContiguousIntervalPair {
     /// let interval = "seq0:50-51".parse::<Interval>()?;
     /// let result = pair.clamp(&interval)?;
     ///
-    /// assert_eq!(result.reference().start(), &Coordinate::try_new("seq0", 50, Strand::Positive)?);
-    /// assert_eq!(result.reference().end(), &Coordinate::try_new("seq0", 51, Strand::Positive)?);
-    /// assert_eq!(result.query().start(), &Coordinate::try_new("seq1", 1050, Strand::Positive)?);
-    /// assert_eq!(result.query().end(), &Coordinate::try_new("seq1", 1051, Strand::Positive)?);
+    /// assert_eq!(
+    ///     result.reference().start(),
+    ///     &Coordinate::try_new("seq0", 50, Strand::Positive)?
+    /// );
+    /// assert_eq!(
+    ///     result.reference().end(),
+    ///     &Coordinate::try_new("seq0", 51, Strand::Positive)?
+    /// );
+    /// assert_eq!(
+    ///     result.query().start(),
+    ///     &Coordinate::try_new("seq1", 1050, Strand::Positive)?
+    /// );
+    /// assert_eq!(
+    ///     result.query().end(),
+    ///     &Coordinate::try_new("seq1", 1051, Strand::Positive)?
+    /// );
     ///
     /// // Positive-stranded to negative-stranded
     ///
@@ -184,10 +197,22 @@ impl ContiguousIntervalPair {
     /// let interval = "seq0:50-51".parse::<Interval>()?;
     /// let result = pair.clamp(&interval)?;
     ///
-    /// assert_eq!(result.reference().start(), &Coordinate::try_new("seq0", 50, Strand::Positive)?);
-    /// assert_eq!(result.reference().end(), &Coordinate::try_new("seq0", 51, Strand::Positive)?);
-    /// assert_eq!(result.query().start(), &Coordinate::try_new("seq1", 1950, Strand::Negative)?);
-    /// assert_eq!(result.query().end(), &Coordinate::try_new("seq1", 1949, Strand::Negative)?);
+    /// assert_eq!(
+    ///     result.reference().start(),
+    ///     &Coordinate::try_new("seq0", 50, Strand::Positive)?
+    /// );
+    /// assert_eq!(
+    ///     result.reference().end(),
+    ///     &Coordinate::try_new("seq0", 51, Strand::Positive)?
+    /// );
+    /// assert_eq!(
+    ///     result.query().start(),
+    ///     &Coordinate::try_new("seq1", 1950, Strand::Negative)?
+    /// );
+    /// assert_eq!(
+    ///     result.query().end(),
+    ///     &Coordinate::try_new("seq1", 1949, Strand::Negative)?
+    /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

@@ -41,9 +41,11 @@ impl AlignmentDataSection {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
     /// use chain::record::HeaderRecord;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -54,7 +56,10 @@ impl AlignmentDataSection {
     ///
     /// // SAFETY: we just checked that the length was one.
     /// let section = sections.pop().unwrap()?;
-    /// assert_eq!(section.header(), &"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1".parse::<HeaderRecord>()?);
+    /// assert_eq!(
+    ///     section.header(),
+    ///     &"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1".parse::<HeaderRecord>()?
+    /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -68,11 +73,12 @@ impl AlignmentDataSection {
     ///
     /// ```
     /// use std::collections::VecDeque;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
     ///
-    /// use chainfile as chain;
-    /// use chain::record::AlignmentDataRecord;
     /// use chain::record::alignment_data::AlignmentDataRecordType;
-    /// use std::io::{self, BufRead};
+    /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -83,7 +89,8 @@ impl AlignmentDataSection {
     ///
     /// // SAFETY: we just checked that the length was one.
     /// let section = sections.pop().unwrap()?;
-    /// let mut records = section.alignment_data_records()
+    /// let mut records = section
+    ///     .alignment_data_records()
     ///     .into_iter()
     ///     .cloned()
     ///     .collect::<VecDeque<AlignmentDataRecord>>();
@@ -115,13 +122,14 @@ impl AlignmentDataSection {
     ///
     /// ```
     /// use std::collections::VecDeque;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
     ///
-    /// use chainfile as chain;
     /// use chain::core::Interval;
     /// use chain::core::Position;
     /// use chain::core::Strand;
     /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -138,12 +146,18 @@ impl AlignmentDataSection {
     ///
     /// // SAFETY: we just checked that the length was two, so this first pop will succeed.
     /// let result = stepthrough.pop_front().unwrap()?;
-    /// let expected = ContiguousIntervalPair::try_new("seq0:0-3".parse::<Interval>()?, "seq0:4-1".parse::<Interval>()?)?;
+    /// let expected = ContiguousIntervalPair::try_new(
+    ///     "seq0:0-3".parse::<Interval>()?,
+    ///     "seq0:4-1".parse::<Interval>()?,
+    /// )?;
     /// assert_eq!(result, expected);
     ///
     /// // SAFETY: we just checked that the length was two, so this second pop will succeed.
     /// let result = stepthrough.pop_front().unwrap()?;
-    /// let expected = ContiguousIntervalPair::try_new("seq0:3-4".parse::<Interval>()?, "seq0:0-$".parse::<Interval>()?)?;
+    /// let expected = ContiguousIntervalPair::try_new(
+    ///     "seq0:3-4".parse::<Interval>()?,
+    ///     "seq0:0-$".parse::<Interval>()?,
+    /// )?;
     /// assert_eq!(result, expected);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -158,10 +172,12 @@ impl AlignmentDataSection {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
     /// use chain::core::Position;
     /// use chain::core::Strand;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -189,10 +205,12 @@ impl AlignmentDataSection {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
     /// use chain::core::Position;
     /// use chain::core::Strand;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -220,10 +238,12 @@ impl AlignmentDataSection {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
     /// use chain::core::Position;
     /// use chain::core::Strand;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -251,10 +271,12 @@ impl AlignmentDataSection {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
     /// use chain::core::Position;
     /// use chain::core::Strand;
-    /// use std::io::{self, BufRead};
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -408,7 +430,7 @@ where
                 None => match self.state {
                     State::InBetweenSections => return None,
                     State::ReadingSection => {
-                        return Some(Err(Box::new(ParseError::AbruptEndInSection)))
+                        return Some(Err(Box::new(ParseError::AbruptEndInSection)));
                     }
                 },
             };
@@ -506,13 +528,13 @@ pub mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(results.len(), 1);
-        assert_eq!(results.get(0).unwrap().alignment_data_records().len(), 2);
+        assert_eq!(results.first().unwrap().alignment_data_records().len(), 2);
         Ok(())
     }
 
     #[test]
-    fn test_invalid_sections_alignment_data_between_sections(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_invalid_sections_alignment_data_between_sections()
+    -> Result<(), Box<dyn std::error::Error>> {
         let data = b"2\t0\t0";
         let cursor = io::Cursor::new(data);
 

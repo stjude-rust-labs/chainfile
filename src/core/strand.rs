@@ -30,8 +30,8 @@ impl Strand {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive complement
     ///

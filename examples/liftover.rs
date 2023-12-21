@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(BufReader::new)
         .map(chain::Reader::new)?;
 
-    let machine = liftover::machine::builder::Builder::default().try_build_from(reader)?;
+    let machine = liftover::machine::builder::Builder.try_build_from(reader)?;
     let results = machine.liftover(&interval);
 
     match results {

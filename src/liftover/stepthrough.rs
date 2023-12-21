@@ -133,7 +133,7 @@ impl<'a> Iterator for StepThrough<'a> {
                     String::from("reference forward by chunk size"),
                     self.reference_pointer.clone(),
                     chunk.size(),
-                )))
+                )));
             }
         };
 
@@ -161,7 +161,7 @@ impl<'a> Iterator for StepThrough<'a> {
                     String::from("query forward by chunk size"),
                     self.query_pointer.clone(),
                     chunk.size(),
-                )))
+                )));
             }
         };
 
@@ -187,7 +187,7 @@ impl<'a> Iterator for StepThrough<'a> {
                         String::from("query forward by dq"),
                         self.query_pointer.clone(),
                         *dq,
-                    )))
+                    )));
                 }
             }
         }
@@ -204,7 +204,7 @@ impl<'a> Iterator for StepThrough<'a> {
                         String::from("reference forward by dt"),
                         self.reference_pointer.clone(),
                         *dt,
-                    )))
+                    )));
                 }
             }
         }

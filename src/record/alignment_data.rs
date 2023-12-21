@@ -46,17 +46,31 @@ pub enum ParseError {
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::IncorrectNumberOfFields(n) => write!(f,
-                "invalid number of fields in alignment data: expected {} (non-terminating) or {} (terminating) fields, found {} fields",
+            ParseError::IncorrectNumberOfFields(n) => write!(
+                f,
+                "invalid number of fields in alignment data: expected {} (non-terminating) or {} \
+                 (terminating) fields, found {} fields",
                 NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING, NUM_ALIGNMENT_DATA_FIELDS_TERMINATING, n
             ),
             ParseError::InvalidSize(err) => write!(f, "invalid size: {}", err),
             ParseError::InvalidDt(err) => write!(f, "invalid dt: {}", err),
             ParseError::InvalidDq(err) => write!(f, "invalid dq: {}", err),
-            ParseError::InvalidNonTerminatingDt => write!(f, "expected value for dt in non-terminating alignment data line, found no value"),
-            ParseError::InvalidNonTerminatingDq => write!(f, "expected value for dq in non-terminating alignment data line, found no value"),
-            ParseError::InvalidTerminatingDt => write!(f, "expected no value for dt in terminating alignment data line, found value"),
-            ParseError::InvalidTerminatingDq => write!(f, "expected no value for dq in terminating alignment data line, found value"),
+            ParseError::InvalidNonTerminatingDt => write!(
+                f,
+                "expected value for dt in non-terminating alignment data line, found no value"
+            ),
+            ParseError::InvalidNonTerminatingDq => write!(
+                f,
+                "expected value for dq in non-terminating alignment data line, found no value"
+            ),
+            ParseError::InvalidTerminatingDt => write!(
+                f,
+                "expected no value for dt in terminating alignment data line, found value"
+            ),
+            ParseError::InvalidTerminatingDq => write!(
+                f,
+                "expected no value for dq in terminating alignment data line, found value"
+            ),
         }
     }
 }
@@ -73,21 +87,24 @@ impl AlignmentDataRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
-    /// use chain::record::AlignmentDataRecord;
     /// use chain::record::alignment_data::AlignmentDataRecordType;
+    /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let record = AlignmentDataRecord::try_new(
     ///     10,
     ///     Some(0),
     ///     Some(1),
-    ///     AlignmentDataRecordType::NonTerminating
+    ///     AlignmentDataRecordType::NonTerminating,
     /// )?;
     ///
     /// assert_eq!(record.size(), 10);
     /// assert_eq!(record.dt(), &Some(0));
     /// assert_eq!(record.dq(), &Some(1));
-    /// assert_eq!(record.record_type(), &AlignmentDataRecordType::NonTerminating);
+    /// assert_eq!(
+    ///     record.record_type(),
+    ///     &AlignmentDataRecordType::NonTerminating
+    /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -126,8 +143,8 @@ impl AlignmentDataRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let alignment: AlignmentDataRecord = "9\t1\t0".parse()?;
     /// assert_eq!(alignment.size(), 9);
@@ -143,8 +160,8 @@ impl AlignmentDataRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let alignment: AlignmentDataRecord = "9\t1\t0".parse()?;
     /// assert_eq!(*alignment.dt(), Some(1));
@@ -160,8 +177,8 @@ impl AlignmentDataRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let alignment: AlignmentDataRecord = "9\t1\t0".parse()?;
     /// assert_eq!(*alignment.dq(), Some(0));
@@ -176,12 +193,15 @@ impl AlignmentDataRecord {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
-    /// use chain::record::AlignmentDataRecord;
     /// use chain::record::alignment_data::AlignmentDataRecordType;
+    /// use chain::record::AlignmentDataRecord;
+    /// use chainfile as chain;
     ///
     /// let alignment: AlignmentDataRecord = "9\t1\t0".parse()?;
-    /// assert_eq!(*alignment.record_type(), AlignmentDataRecordType::NonTerminating);
+    /// assert_eq!(
+    ///     *alignment.record_type(),
+    ///     AlignmentDataRecordType::NonTerminating
+    /// );
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn record_type(&self) -> &AlignmentDataRecordType {
@@ -273,8 +293,8 @@ pub mod tests {
 
         assert_eq!(
             err.to_string(),
-            "invalid number of fields in alignment data: expected 3 (non-terminating) \
-             or 1 (terminating) fields, found 2 fields"
+            "invalid number of fields in alignment data: expected 3 (non-terminating) or 1 \
+             (terminating) fields, found 2 fields"
         );
 
         Ok(())

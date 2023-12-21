@@ -147,12 +147,7 @@ impl std::ops::Sub for &Position {
 
 impl PartialOrd for Position {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Position::ZeroBased(a), Position::ZeroBased(b)) => a.partial_cmp(b),
-            (Position::ZeroBased(_), Position::NegativeBound) => Some(std::cmp::Ordering::Greater),
-            (Position::NegativeBound, Position::ZeroBased(_)) => Some(std::cmp::Ordering::Less),
-            (Position::NegativeBound, Position::NegativeBound) => Some(std::cmp::Ordering::Equal),
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -182,8 +177,8 @@ impl Position {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Position;
+    /// use chainfile as chain;
     ///
     /// let position = Position::new(0);
     /// assert!(matches!(position, Position::ZeroBased(0)));
@@ -197,8 +192,8 @@ impl Position {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Position;
+    /// use chainfile as chain;
     ///
     /// let position = Position::negative_bound();
     /// assert!(matches!(position, Position::NegativeBound));

@@ -1,4 +1,5 @@
-//! A 0-based location within a genome consisting of a contig, a position, and a strand.
+//! A 0-based location within a genome consisting of a contig, a position, and a
+//! strand.
 
 use crate::core::Interval;
 use crate::core::Strand;
@@ -46,11 +47,11 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chain::core::coordinate::Error;
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
-    /// use chain::core::coordinate::Error;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded
     ///
@@ -75,7 +76,8 @@ impl Coordinate {
     ///
     /// // Attempting to create negative-bound on positive strand
     ///
-    /// let err = Coordinate::try_new("seq0", Position::negative_bound(), Strand::Positive).unwrap_err();
+    /// let err =
+    ///     Coordinate::try_new("seq0", Position::negative_bound(), Strand::Positive).unwrap_err();
     /// assert_eq!(err, Error::NegativeBoundOnNonNegativeStrand);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -107,10 +109,10 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let coordinate = Coordinate::negative_bound("seq0");
     /// assert_eq!(coordinate.contig().as_str(), "seq0");
@@ -128,9 +130,9 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Zero-based coordinate
     ///
@@ -153,10 +155,10 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Zero-based coordinate
     ///
@@ -179,9 +181,9 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Zero-based coordinate
     ///
@@ -211,10 +213,10 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded
     ///
@@ -330,10 +332,10 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded
     ///
@@ -430,17 +432,19 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded that falls within interval
     ///
     /// let coordinate = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
-    /// let result = coordinate.move_forward_checked_bounds(10, &interval).unwrap()?;
+    /// let result = coordinate
+    ///     .move_forward_checked_bounds(10, &interval)
+    ///     .unwrap()?;
     ///
     /// assert_eq!(result.contig(), &String::from("seq0"));
     /// assert_eq!(result.position(), &Position::new(10));
@@ -450,7 +454,9 @@ impl Coordinate {
     ///
     /// let coordinate = Coordinate::try_new("seq0", 1000, Strand::Negative)?;
     /// let interval = "seq0:1000-0".parse::<Interval>()?;
-    /// let result = coordinate.move_forward_checked_bounds(10, &interval).unwrap()?;
+    /// let result = coordinate
+    ///     .move_forward_checked_bounds(10, &interval)
+    ///     .unwrap()?;
     ///
     /// assert_eq!(result.contig(), &String::from("seq0"));
     /// assert_eq!(result.position(), &Position::new(990));
@@ -502,17 +508,19 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded that falls within interval
     ///
     /// let coordinate = Coordinate::try_new("seq0", 500, Strand::Positive)?;
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
-    /// let result = coordinate.move_backward_checked_bounds(10, &interval).unwrap()?;
+    /// let result = coordinate
+    ///     .move_backward_checked_bounds(10, &interval)
+    ///     .unwrap()?;
     ///
     /// assert_eq!(result.contig(), &String::from("seq0"));
     /// assert_eq!(result.position(), &Position::new(490));
@@ -522,7 +530,9 @@ impl Coordinate {
     ///
     /// let coordinate = Coordinate::try_new("seq0", 500, Strand::Negative)?;
     /// let interval = "seq0:1000-0".parse::<Interval>()?;
-    /// let result = coordinate.move_backward_checked_bounds(10, &interval).unwrap()?;
+    /// let result = coordinate
+    ///     .move_backward_checked_bounds(10, &interval)
+    ///     .unwrap()?;
     ///
     /// assert_eq!(result.contig(), &String::from("seq0"));
     /// assert_eq!(result.position(), &Position::new(510));
@@ -540,7 +550,9 @@ impl Coordinate {
     ///
     /// let coordinate = Coordinate::negative_bound("seq0");
     /// let interval = "seq0:10-$".parse::<Interval>()?;
-    /// let result = coordinate.move_backward_checked_bounds(11, &interval).unwrap()?;
+    /// let result = coordinate
+    ///     .move_backward_checked_bounds(11, &interval)
+    ///     .unwrap()?;
     ///
     /// assert_eq!(result.contig(), &String::from("seq0"));
     /// assert_eq!(result.position(), &Position::new(10));
@@ -581,11 +593,11 @@ impl Coordinate {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Position;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-strand
     /// let coordinate = Coordinate::try_new("seq0", 5, Strand::Positive)?;
@@ -613,7 +625,7 @@ impl Coordinate {
         let position = match self.position() {
             Position::ZeroBased(position) => position,
             Position::NegativeBound => {
-                return Coordinate::try_new(self.contig(), contig_size, self.strand().clone())
+                return Coordinate::try_new(self.contig(), contig_size, self.strand().clone());
             }
         };
 
@@ -621,8 +633,8 @@ impl Coordinate {
         if new_position_plus_one == 0 {
             match self.strand() {
                 Strand::Positive => unreachable!(
-                    "it should never be possible to want to return the negative bound \
-                    if the source coordinate is on the positive strand"
+                    "it should never be possible to want to return the negative bound if the \
+                     source coordinate is on the positive strand"
                 ),
                 Strand::Negative => Ok(Coordinate::negative_bound(self.contig())),
             }

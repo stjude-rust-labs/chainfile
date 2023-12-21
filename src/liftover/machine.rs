@@ -90,7 +90,7 @@ mod tests {
     pub fn test_valid_positive_strand_liftover() -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 + 0 10 seq1 10 + 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
         let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
@@ -121,7 +121,7 @@ mod tests {
     pub fn test_valid_negative_strand_liftover() -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 - 0 10 seq1 10 - 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
         let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;
@@ -149,11 +149,11 @@ mod tests {
     }
 
     #[test]
-    pub fn test_valid_positive_to_negative_strand_liftover(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn test_valid_positive_to_negative_strand_liftover()
+    -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 + 0 10 seq1 10 - 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
         let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
@@ -181,11 +181,11 @@ mod tests {
     }
 
     #[test]
-    pub fn test_valid_negative_to_positive_strand_liftover(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn test_valid_negative_to_positive_strand_liftover()
+    -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 - 0 10 seq1 10 + 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
         let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;
@@ -213,11 +213,11 @@ mod tests {
     }
 
     #[test]
-    pub fn test_nonexistent_positive_strand_interval_liftover(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn test_nonexistent_positive_strand_interval_liftover()
+    -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 - 0 10 seq1 10 - 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
         let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
@@ -231,11 +231,11 @@ mod tests {
     }
 
     #[test]
-    pub fn test_nonexistent_negative_strand_interval_liftover(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn test_nonexistent_negative_strand_interval_liftover()
+    -> Result<(), Box<dyn std::error::Error>> {
         let data = b"chain 0 seq0 10 + 0 10 seq1 10 + 0 10 0\n10";
         let reader = Reader::new(&data[..]);
-        let machine = machine::Builder::default().try_build_from(reader)?;
+        let machine = machine::Builder.try_build_from(reader)?;
 
         let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
         let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;

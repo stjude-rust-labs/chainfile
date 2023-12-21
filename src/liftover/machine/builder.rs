@@ -91,7 +91,10 @@ impl Builder {
 
                         let stop = match pair.reference().start().position() {
                             Position::ZeroBased(b) => b + 1,
-                            Position::NegativeBound => unreachable!("negative bound will never be the start of a negative-stranded interval"),
+                            Position::NegativeBound => unreachable!(
+                                "negative bound will never be the start of a negative-stranded \
+                                 interval"
+                            ),
                         };
 
                         (start, stop)

@@ -77,9 +77,8 @@ impl FromStr for Line {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::record::alignment_data::AlignmentDataRecordType;
-
     use super::*;
+    use crate::record::alignment_data::AlignmentDataRecordType;
 
     #[test]
     pub fn test_valid_header_line() -> Result<(), Box<dyn std::error::Error>> {
@@ -119,8 +118,8 @@ pub mod tests {
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "invalid header record: invalid id: invalid digit \
-             found in string\n\nline: chain 0 seq0 2 + 0 2 seq0 2 - 0 2 ?"
+            "invalid header record: invalid id: invalid digit found in string\n\nline: chain 0 \
+             seq0 2 + 0 2 seq0 2 - 0 2 ?"
         );
         Ok(())
     }
@@ -130,9 +129,8 @@ pub mod tests {
         let err = "9\t1".parse::<Line>().unwrap_err();
         assert_eq!(
             err.to_string(),
-            "invalid alignment data record: invalid number of fields in alignment data: \
-            expected 3 (non-terminating) or 1 (terminating) fields, found 2 fields\n\n\
-            line: 9\t1"
+            "invalid alignment data record: invalid number of fields in alignment data: expected \
+             3 (non-terminating) or 1 (terminating) fields, found 2 fields\n\nline: 9\t1"
         );
         Ok(())
     }

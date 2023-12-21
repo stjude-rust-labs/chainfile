@@ -47,10 +47,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(BufReader::new)
         .map(chain::Reader::new)?;
 
-    let machine = liftover::machine::builder::Builder::default().try_build_from(chain)?;
+    let machine = liftover::machine::builder::Builder.try_build_from(chain)?;
 
     let mut reference = HashMap::new();
-    for result in fasta::reader::Builder::default()
+    for result in fasta::reader::Builder
         .build_from_path(reference_path)?
         .records()
     {
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut query = HashMap::new();
-    for result in fasta::reader::Builder::default()
+    for result in fasta::reader::Builder
         .build_from_path(query_path)?
         .records()
     {
@@ -87,8 +87,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for region in results {
             let query_sequence = query.get(region.query().contig()).unwrap_or_else(|| {
                 panic!(
-                    "query fasta did not contain necessary contig: {}. \
-                    Are the FASTA files and chain file correct?",
+                    "query fasta did not contain necessary contig: {}. Are the FASTA files and \
+                     chain file correct?",
                     region.query().contig()
                 )
             });

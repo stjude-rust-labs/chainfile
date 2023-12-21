@@ -25,20 +25,20 @@
 //! - Singular positions are provided in the form `<contig>:<position>` (e.g.,
 //!   `seq0:1`). Singular positions are always parsed as an interval containing
 //!   only the position specified. These are always placed on the positive
-//!   strand, primarily because there is no coherent way to derive the strandedness
-//!   from the interval short of explicitly specifying the strand in the
-//!   interval. The authors did not want to support this, so we chose to always
-//!   interpret these as being on the positive strand. Furthermore, when an
-//!   interval is a single position, directionality is largely inconsequential
-//!   for the purposes of this library.
+//!   strand, primarily because there is no coherent way to derive the
+//!   strandedness from the interval short of explicitly specifying the strand
+//!   in the interval. The authors did not want to support this, so we chose to
+//!   always interpret these as being on the positive strand. Furthermore, when
+//!   an interval is a single position, directionality is largely
+//!   inconsequential for the purposes of this library.
 //! - Range of positions are provided in the form `<contig>:<start>-<end>`
 //!   (e.g., `seq0:0-1000`). Importantly, the start and the end positions are
-//!   used to determine which strand the interval falls on. If the end
-//!   position is greater than the start position, then the interval is
-//!   interpretted as being [`Strand::Positive`]. If the start position is
-//!   greater than the end position, then the interval is interpretted as being
-//!   [`Strand::Negative`]. Note that, if the start position and end position
-//!   are equal, this would be a zero-sized interval, which would trigger an
+//!   used to determine which strand the interval falls on. If the end position
+//!   is greater than the start position, then the interval is interpretted as
+//!   being [`Strand::Positive`]. If the start position is greater than the end
+//!   position, then the interval is interpretted as being [`Strand::Negative`].
+//!   Note that, if the start position and end position are equal, this would be
+//!   a zero-sized interval, which would trigger an
 //!   [`Error::ZeroSizedInterval`].
 
 use std::collections::VecDeque;
@@ -93,10 +93,18 @@ impl std::fmt::Display for Error {
                 "start position equals end position, which is a zero-sized interval"
             ),
             Error::StartGreaterThanEndForPositiveStrand => {
-                write!(f, "start position cannot be greater than the end position for a positive stranded interval")
+                write!(
+                    f,
+                    "start position cannot be greater than the end position for a positive \
+                     stranded interval"
+                )
             }
             Error::EndGreaterThanStartForNegativeStrand => {
-                write!(f, "end position cannot be greater than the start position for a negative stranded interval")
+                write!(
+                    f,
+                    "end position cannot be greater than the start position for a negative \
+                     stranded interval"
+                )
             }
             Error::MismatchedContigDuringClamp(a, b) => {
                 write!(f, "mismatched contig while clamping: {} and {}", a, b)
@@ -121,10 +129,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
@@ -182,10 +190,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let start = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// let end = Coordinate::try_new("seq0", 1000, Strand::Positive)?;
@@ -204,10 +212,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let start = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// let end = Coordinate::try_new("seq0", 1000, Strand::Positive)?;
@@ -228,10 +236,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let start = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// let end = Coordinate::try_new("seq0", 1000, Strand::Positive)?;
@@ -252,10 +260,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// let start = Coordinate::try_new("seq0", 0, Strand::Positive)?;
     /// let end = Coordinate::try_new("seq0", 1000, Strand::Positive)?;
@@ -274,10 +282,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
@@ -309,10 +317,10 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
@@ -389,11 +397,11 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
-    /// use chain::core::Coordinate;
     /// use chain::core::interval::Error;
+    /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
@@ -414,14 +422,20 @@ impl Interval {
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
     /// let clamp = "seq1:250-2000".parse::<Interval>()?;
     /// let result = interval.clamp(&clamp);
-    /// assert!(matches!(result, Err(Error::MismatchedContigDuringClamp(_, _))));
+    /// assert!(matches!(
+    ///     result,
+    ///     Err(Error::MismatchedContigDuringClamp(_, _))
+    /// ));
     ///
     /// // Differing strands
     ///
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
     /// let clamp = "seq0:2000-250".parse::<Interval>()?;
     /// let result = interval.clamp(&clamp);
-    /// assert!(matches!(result, Err(Error::MismatchedStrandDuringClamp(_, _))));
+    /// assert!(matches!(
+    ///     result,
+    ///     Err(Error::MismatchedStrandDuringClamp(_, _))
+    /// ));
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -476,31 +490,61 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
     ///
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 5, Strand::Positive)?), Some(5));
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 999, Strand::Positive)?), Some(999));
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 5, Strand::Positive)?),
+    ///     Some(5)
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 999, Strand::Positive)?),
+    ///     Some(999)
+    /// );
     ///
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq1", 5, Strand::Positive)?), None);
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 5, Strand::Negative)?), None);
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 1000, Strand::Positive)?), None);
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq1", 5, Strand::Positive)?),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 5, Strand::Negative)?),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 1000, Strand::Positive)?),
+    ///     None
+    /// );
     ///
     /// // Negative-stranded interval
     ///
     /// let interval = "seq0:1000-0".parse::<Interval>()?;
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 995, Strand::Negative)?), Some(5));
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 1, Strand::Negative)?), Some(999));
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 995, Strand::Negative)?),
+    ///     Some(5)
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 1, Strand::Negative)?),
+    ///     Some(999)
+    /// );
     ///
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq1", 995, Strand::Negative)?), None);
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 995, Strand::Positive)?), None);
-    /// assert_eq!(interval.offset_from_start(&Coordinate::try_new("seq0", 0, Strand::Negative)?), None);
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq1", 995, Strand::Negative)?),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 995, Strand::Positive)?),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     interval.offset_from_start(&Coordinate::try_new("seq0", 0, Strand::Negative)?),
+    ///     None
+    /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -526,25 +570,37 @@ impl Interval {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use chain::core::Coordinate;
     /// use chain::core::Interval;
     /// use chain::core::Strand;
+    /// use chainfile as chain;
     ///
     /// // Positive-stranded interval
     ///
     /// let interval = "seq0:0-1000".parse::<Interval>()?;
     ///
-    /// assert_eq!(interval.translate_offset_from_start(5), Some(Ok(Coordinate::try_new("seq0", 5, Strand::Positive)?)));
-    /// assert_eq!(interval.translate_offset_from_start(999), Some(Ok(Coordinate::try_new("seq0", 999, Strand::Positive)?)));
+    /// assert_eq!(
+    ///     interval.translate_offset_from_start(5),
+    ///     Some(Ok(Coordinate::try_new("seq0", 5, Strand::Positive)?))
+    /// );
+    /// assert_eq!(
+    ///     interval.translate_offset_from_start(999),
+    ///     Some(Ok(Coordinate::try_new("seq0", 999, Strand::Positive)?))
+    /// );
     /// assert_eq!(interval.translate_offset_from_start(1000), None);
     ///
     /// // Negative-stranded interval
     ///
     /// let interval = "seq0:1000-$".parse::<Interval>()?;
     ///
-    /// assert_eq!(interval.translate_offset_from_start(5), Some(Ok(Coordinate::try_new("seq0", 995, Strand::Negative)?)));
-    /// assert_eq!(interval.translate_offset_from_start(1000), Some(Ok(Coordinate::try_new("seq0", 0, Strand::Negative)?)));
+    /// assert_eq!(
+    ///     interval.translate_offset_from_start(5),
+    ///     Some(Ok(Coordinate::try_new("seq0", 995, Strand::Negative)?))
+    /// );
+    /// assert_eq!(
+    ///     interval.translate_offset_from_start(1000),
+    ///     Some(Ok(Coordinate::try_new("seq0", 0, Strand::Negative)?))
+    /// );
     /// assert_eq!(interval.translate_offset_from_start(1001), None);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -698,8 +754,8 @@ mod tests {
     }
 
     #[test]
-    fn test_it_does_not_allow_start_to_be_greater_than_end_for_positive_stranded_interval(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_it_does_not_allow_start_to_be_greater_than_end_for_positive_stranded_interval()
+    -> Result<(), Box<dyn std::error::Error>> {
         let start = Coordinate::try_new("seq0", 10, Strand::Positive)?;
         let end = Coordinate::try_new("seq0", 0, Strand::Positive)?;
 
@@ -710,8 +766,8 @@ mod tests {
     }
 
     #[test]
-    fn test_it_does_not_allow_end_to_be_greater_than_start_for_negative_stranded_interval(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_it_does_not_allow_end_to_be_greater_than_start_for_negative_stranded_interval()
+    -> Result<(), Box<dyn std::error::Error>> {
         let start = Coordinate::try_new("seq0", 0, Strand::Negative)?;
         let end = Coordinate::try_new("seq0", 10, Strand::Negative)?;
 
@@ -722,8 +778,8 @@ mod tests {
     }
 
     #[test]
-    fn test_it_clamps_correctly_for_positive_stranded_intervals(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_it_clamps_correctly_for_positive_stranded_intervals()
+    -> Result<(), Box<dyn std::error::Error>> {
         let interval = "seq0:1000-2000".parse::<Interval>()?;
         assert!(matches!(
             interval.clone().clamp(&"seq1:0-3000".parse::<Interval>()?),
@@ -760,8 +816,8 @@ mod tests {
     }
 
     #[test]
-    fn test_it_clamps_correctly_for_negative_stranded_intervals(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_it_clamps_correctly_for_negative_stranded_intervals()
+    -> Result<(), Box<dyn std::error::Error>> {
         let interval = "seq0:2000-1000".parse::<Interval>()?;
         assert!(matches!(
             interval.clone().clamp(&"seq1:3000-0".parse::<Interval>()?),
@@ -798,8 +854,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parsing_intervals_works_for_valid_single_position(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parsing_intervals_works_for_valid_single_position()
+    -> Result<(), Box<dyn std::error::Error>> {
         let interval = "seq0:1".parse::<Interval>()?;
         let start = Coordinate::try_new("seq0", 1, Strand::Positive)?;
         let end = Coordinate::try_new("seq0", 2, Strand::Positive)?;
@@ -810,8 +866,8 @@ mod tests {
     }
 
     #[test]
-    fn test_parsing_intervals_works_for_valid_position_range(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parsing_intervals_works_for_valid_position_range()
+    -> Result<(), Box<dyn std::error::Error>> {
         // Testing positive stranded interval
         let interval = "seq0:1-1000".parse::<Interval>()?;
         let start = Coordinate::try_new("seq0", 1, Strand::Positive)?;

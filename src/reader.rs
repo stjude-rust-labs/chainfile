@@ -1,6 +1,7 @@
 //! A chain file reader.
 
-use std::io::{self, BufRead};
+use std::io::BufRead;
+use std::io::{self};
 use std::iter;
 
 use crate::line;
@@ -63,8 +64,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io;
+    ///
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -81,8 +83,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io::Read;
+    ///
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chain::Reader::new(&data[..]);
@@ -100,8 +103,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io::BufRead;
+    ///
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let reader = chain::Reader::new(&data[..]);
@@ -124,8 +128,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io;
+    ///
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chain::Reader::new(&data[..]);
@@ -154,9 +159,10 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io;
+    ///
     /// use chain::line::Line;
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chain::Reader::new(&data[..]);
@@ -188,8 +194,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
     /// use std::io::BufRead;
+    ///
+    /// use chainfile as chain;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chain::Reader::new(&data[..]);
@@ -228,7 +235,10 @@ where
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chain::Reader::new(&data[..]);
     ///
-    /// let sections = reader.sections().map(|result| result.unwrap()).collect::<Vec<_>>();
+    /// let sections = reader
+    ///     .sections()
+    ///     .map(|result| result.unwrap())
+    ///     .collect::<Vec<_>>();
     /// assert_eq!(sections.len(), 1);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -279,8 +289,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io;
+
+    use super::*;
 
     #[test]
     fn test_read_line() -> Result<(), Box<dyn std::error::Error>> {
