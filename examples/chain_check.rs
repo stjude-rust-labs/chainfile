@@ -25,24 +25,21 @@ use std::fs::File;
 use std::io::BufReader;
 use std::iter::zip;
 
-use chain::core::Coordinate;
-use chain::core::Interval;
-use chain::core::Position;
-use chain::core::Strand;
 use chain::liftover;
 use chainfile as chain;
 use flate2::read::GzDecoder;
 use noodles::fasta;
+use omics::coordinate::Strand;
+use omics::coordinate::interval::zero::Interval;
+use omics::coordinate::position::Value;
+use omics::coordinate::zero::Coordinate;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut total_positions = 0usize;
-    let mut mismatches = 0usize;
+    let chain_file_path = env::args().nth(1).expect("missing chainfile path");
+    let reference_fasta_path = env::args().nth(2).expect("missing reference fasta path");
+    let query_fasta_path = env::args().nth(3).expect("missing query fasta path");
 
-    let chain_path = env::args().nth(1).expect("missing chain path");
-    let reference_path = env::args().nth(2).expect("missing reference path");
-    let query_path = env::args().nth(3).expect("missing query path");
-
-    let chain = File::open(chain_path)
+    let chain = File::open(chain_file_path)
         .map(GzDecoder::new)
         .map(BufReader::new)
         .map(chain::Reader::new)?;
@@ -51,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut reference = HashMap::new();
     for result in fasta::reader::Builder
-        .build_from_path(reference_path)?
+        .build_from_path(reference_fasta_path)?
         .records()
     {
         let record = result?;
@@ -60,17 +57,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut query = HashMap::new();
     for result in fasta::reader::Builder
-        .build_from_path(query_path)?
+        .build_from_path(query_fasta_path)?
         .records()
     {
         let record = result?;
         query.insert(record.name().to_string(), record.sequence().clone());
     }
 
+    let mut total_positions = 0usize;
+    let mut mismatches = 0usize;
+
     for (name, reference_sequence) in reference {
         let interval = Interval::try_new(
-            Coordinate::try_new(name.clone(), 0, Strand::Positive)?,
-            Coordinate::try_new(name, reference_sequence.len(), Strand::Positive)?,
+            Coordinate::try_new(name.clone(), Strand::Positive, 0)?,
+            Coordinate::try_new(name, Strand::Positive, reference_sequence.len())?,
         )?;
 
         let results = match machine.liftover(&interval) {
@@ -85,13 +85,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         for region in results {
-            let query_sequence = query.get(region.query().contig()).unwrap_or_else(|| {
-                panic!(
-                    "query fasta did not contain necessary contig: {}. Are the FASTA files and \
-                     chain file correct?",
-                    region.query().contig()
-                )
-            });
+            let query_sequence = query
+                .get(region.query().contig().inner())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "query FASTA did not contain necessary contig \"{}\": are the FASTA files \
+                         and chain file correct?",
+                        region.query().contig()
+                    )
+                });
 
             let reference = get_sequence_for_interval(&reference_sequence, region.reference());
             let query = get_sequence_for_interval(query_sequence, region.query());
@@ -112,11 +114,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn get_sequence_for_interval(
     sequence: &fasta::record::Sequence,
-    interval: &chain::core::Interval,
+    interval: &Interval,
 ) -> Vec<Nucleotide> {
     let result = sequence
         .slice(parse_interval(interval))
-        .expect("sequence lookup to succeed. Are the FASTA files and chain file correct?")
+        .expect("sequence lookup did not succeed: are the FASTA files and chain file correct?")
         .as_ref()
         .iter()
         .map(Nucleotide::from)
@@ -132,38 +134,30 @@ fn get_sequence_for_interval(
     }
 }
 
-fn parse_interval(interval: &chain::core::Interval) -> noodles::core::region::Interval {
+fn parse_interval(interval: &Interval) -> noodles::core::region::Interval {
     let (start, end) = match interval.strand() {
         Strand::Positive => {
-            let start = match interval.start().position() {
-                Position::ZeroBased(position) => {
-                    noodles::core::Position::try_from(*position + 1).unwrap()
-                }
-                Position::NegativeBound => unreachable!(),
+            let start = match interval.start().position().inner() {
+                Value::Usize(position) => noodles::core::Position::try_from(*position + 1).unwrap(),
+                Value::LowerBound => unreachable!(),
             };
 
-            let end = match interval.end().position() {
-                Position::ZeroBased(position) => {
-                    noodles::core::Position::try_from(*position).unwrap()
-                }
-                Position::NegativeBound => unreachable!(),
+            let end = match interval.end().position().inner() {
+                Value::Usize(position) => noodles::core::Position::try_from(*position).unwrap(),
+                Value::LowerBound => unreachable!(),
             };
 
             (start, end)
         }
         Strand::Negative => {
-            let start = match interval.end().position() {
-                Position::ZeroBased(position) => {
-                    noodles::core::Position::try_from(*position + 2).unwrap()
-                }
-                Position::NegativeBound => noodles::core::Position::try_from(1).unwrap(),
+            let start = match interval.end().position().inner() {
+                Value::Usize(position) => noodles::core::Position::try_from(*position + 2).unwrap(),
+                Value::LowerBound => noodles::core::Position::try_from(1).unwrap(),
             };
 
-            let end = match interval.start().position() {
-                Position::ZeroBased(position) => {
-                    noodles::core::Position::try_from(*position + 1).unwrap()
-                }
-                Position::NegativeBound => unreachable!(),
+            let end = match interval.start().position().inner() {
+                Value::Usize(position) => noodles::core::Position::try_from(*position + 1).unwrap(),
+                Value::LowerBound => unreachable!(),
             };
 
             (start, end)

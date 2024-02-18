@@ -2,10 +2,10 @@ use std::env;
 use std::fs::File;
 use std::io::BufReader;
 
-use chain::core::Interval;
 use chain::liftover;
 use chainfile as chain;
 use flate2::read::GzDecoder;
+use omics::coordinate::interval::zero::Interval;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let interval = env::args().nth(1).expect("missing interval");

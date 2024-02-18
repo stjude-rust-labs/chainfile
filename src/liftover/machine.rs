@@ -2,12 +2,11 @@
 
 use std::collections::HashMap;
 
+use omics::coordinate::Contig;
+use omics::coordinate::Strand;
+use omics::coordinate::interval::zero::Interval;
 use rust_lapper as lapper;
 
-use crate::core::coordinate::Position;
-use crate::core::Contig;
-use crate::core::Interval;
-use crate::core::Strand;
 use crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
 
 pub mod builder;
@@ -19,7 +18,10 @@ pub use builder::Builder;
 ///
 /// Generally, you will want to use a [`builder::Builder`] to construct one of
 /// these.
+#[derive(Debug)]
 pub struct Machine {
+    /// The inner lookup table of positions in the reference genome to positions
+    /// in the query genome for each contig in the reference genome.
     inner: HashMap<Contig, lapper::Lapper<usize, ContiguousIntervalPair>>,
 }
 
@@ -30,36 +32,40 @@ impl Machine {
 
         let (start, stop) = match interval.strand() {
             Strand::Positive => {
-                let start = match interval.start().position() {
-                    Position::ZeroBased(a) => *a,
-                    Position::NegativeBound => {
-                        unreachable!("negative bound not allowed on positive strand")
-                    }
-                };
+                let start = interval
+                    .start()
+                    .position()
+                    .inner()
+                    .get()
+                    .unwrap_or_else(|| unreachable!("lower bound not allowed on positive strand"));
 
-                let stop = match interval.end().position() {
-                    Position::ZeroBased(b) => *b,
-                    Position::NegativeBound => {
-                        unreachable!("negative bound not allowed on positive strand")
-                    }
-                };
+                let end =
+                    interval.end().position().inner().get().unwrap_or_else(|| {
+                        unreachable!("lower bound not allowed on positive strand")
+                    });
 
-                (start, stop)
+                (start, end)
             }
             Strand::Negative => {
-                let start = match interval.end().position() {
-                    Position::ZeroBased(a) => a + 1,
-                    Position::NegativeBound => 0,
-                };
+                let start = interval
+                    .end()
+                    .position()
+                    .get()
+                    .map(|pos| pos + 1)
+                    .unwrap_or(0);
 
-                let stop = match interval.start().position() {
-                    Position::ZeroBased(b) => b + 1,
-                    Position::NegativeBound => unreachable!(
-                        "negative bound will never be the start of a negative-stranded interval"
-                    ),
-                };
+                let end = interval
+                    .start()
+                    .position()
+                    .get()
+                    .map(|pos| pos + 1)
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "lower bound will never be the start of a negative-stranded interval"
+                        )
+                    });
 
-                (start, stop)
+                (start, end)
             }
         };
 
@@ -79,12 +85,12 @@ impl Machine {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::Coordinate;
-    use crate::core::Interval;
-    use crate::core::Position;
-    use crate::core::Strand;
-    use crate::liftover::machine;
+    use omics::coordinate::position::zero::Position;
+    use omics::coordinate::zero::Coordinate;
+
+    use super::*;
     use crate::Reader;
+    use crate::liftover::machine;
 
     #[test]
     pub fn test_valid_positive_strand_liftover() -> Result<(), Box<dyn std::error::Error>> {
@@ -92,8 +98,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
-        let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
+        let from = Coordinate::try_new("seq0", Strand::Positive, 1)?;
+        let to = Coordinate::try_new("seq0", Strand::Positive, 7)?;
 
         let interval = Interval::try_new(from, to)?;
         let mut results = machine.liftover(&interval).unwrap();
@@ -102,13 +108,13 @@ mod tests {
 
         let result = results.pop().unwrap();
 
-        assert_eq!(result.reference().contig(), "seq0");
+        assert_eq!(result.reference().contig().inner(), "seq0");
         assert_eq!(result.reference().start().strand(), &Strand::Positive);
         assert_eq!(result.reference().start().position(), &Position::from(1));
         assert_eq!(result.reference().end().strand(), &Strand::Positive);
         assert_eq!(result.reference().end().position(), &Position::from(7));
 
-        assert_eq!(result.query().contig(), "seq1");
+        assert_eq!(result.query().contig().inner(), "seq1");
         assert_eq!(result.query().start().strand(), &Strand::Positive);
         assert_eq!(result.query().start().position(), &Position::from(1));
         assert_eq!(result.query().end().strand(), &Strand::Positive);
@@ -123,8 +129,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
-        let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;
+        let from = Coordinate::try_new("seq0", Strand::Negative, 7)?;
+        let to = Coordinate::try_new("seq0", Strand::Negative, 1)?;
 
         let interval = Interval::try_new(from, to)?;
         let mut results = machine.liftover(&interval).unwrap();
@@ -133,13 +139,13 @@ mod tests {
 
         let result = results.pop().unwrap();
 
-        assert_eq!(result.reference().contig(), "seq0");
+        assert_eq!(result.reference().contig().inner(), "seq0");
         assert_eq!(result.reference().start().strand(), &Strand::Negative);
         assert_eq!(result.reference().start().position(), &Position::from(7));
         assert_eq!(result.reference().end().strand(), &Strand::Negative);
         assert_eq!(result.reference().end().position(), &Position::from(1));
 
-        assert_eq!(result.query().contig(), "seq1");
+        assert_eq!(result.query().contig().inner(), "seq1");
         assert_eq!(result.query().start().strand(), &Strand::Negative);
         assert_eq!(result.query().start().position(), &Position::from(7));
         assert_eq!(result.query().end().strand(), &Strand::Negative);
@@ -155,8 +161,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
-        let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
+        let from = Coordinate::try_new("seq0", Strand::Positive, 1)?;
+        let to = Coordinate::try_new("seq0", Strand::Positive, 7)?;
 
         let interval = Interval::try_new(from, to)?;
         let mut results = machine.liftover(&interval).unwrap();
@@ -165,13 +171,13 @@ mod tests {
 
         let result = results.pop().unwrap();
 
-        assert_eq!(result.reference().contig(), "seq0");
+        assert_eq!(result.reference().contig().inner(), "seq0");
         assert_eq!(result.reference().start().strand(), &Strand::Positive);
         assert_eq!(result.reference().start().position(), &Position::from(1));
         assert_eq!(result.reference().end().strand(), &Strand::Positive);
         assert_eq!(result.reference().end().position(), &Position::from(7));
 
-        assert_eq!(result.query().contig(), "seq1");
+        assert_eq!(result.query().contig().inner(), "seq1");
         assert_eq!(result.query().start().strand(), &Strand::Negative);
         assert_eq!(result.query().start().position(), &Position::from(8));
         assert_eq!(result.query().end().strand(), &Strand::Negative);
@@ -187,8 +193,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
-        let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;
+        let from = Coordinate::try_new("seq0", Strand::Negative, 7)?;
+        let to = Coordinate::try_new("seq0", Strand::Negative, 1)?;
 
         let interval = Interval::try_new(from, to)?;
         let mut results = machine.liftover(&interval).unwrap();
@@ -197,13 +203,13 @@ mod tests {
 
         let result = results.pop().unwrap();
 
-        assert_eq!(result.reference().contig(), "seq0");
+        assert_eq!(result.reference().contig().inner(), "seq0");
         assert_eq!(result.reference().start().strand(), &Strand::Negative);
         assert_eq!(result.reference().start().position(), &Position::from(7));
         assert_eq!(result.reference().end().strand(), &Strand::Negative);
         assert_eq!(result.reference().end().position(), &Position::from(1));
 
-        assert_eq!(result.query().contig(), "seq1");
+        assert_eq!(result.query().contig().inner(), "seq1");
         assert_eq!(result.query().start().strand(), &Strand::Positive);
         assert_eq!(result.query().start().position(), &Position::from(2));
         assert_eq!(result.query().end().strand(), &Strand::Positive);
@@ -219,8 +225,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 1, Strand::Positive)?;
-        let to = Coordinate::try_new("seq0", 7, Strand::Positive)?;
+        let from = Coordinate::try_new("seq0", Strand::Positive, 1)?;
+        let to = Coordinate::try_new("seq0", Strand::Positive, 7)?;
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(&interval);
@@ -237,8 +243,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::try_new("seq0", 7, Strand::Negative)?;
-        let to = Coordinate::try_new("seq0", 1, Strand::Negative)?;
+        let from = Coordinate::try_new("seq0", Strand::Negative, 7)?;
+        let to = Coordinate::try_new("seq0", Strand::Negative, 1)?;
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(&interval);

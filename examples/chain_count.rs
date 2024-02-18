@@ -2,7 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::BufReader;
 
-use chain::line::Line;
+use chain::Line;
 use chainfile as chain;
 use flate2::read::GzDecoder;
 
