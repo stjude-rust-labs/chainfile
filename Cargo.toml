@@ -1,19 +1,20 @@
 [package]
-authors = ["Clay McLeod <clay.l.mcleod@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0/MIT"
 name = "chainfile"
-rust-version = "1.72.0"
-publish = true
+authors = ["St. Jude Rust Labs"]
+version = "0.2.1"
 description = "A crate for working with genomics chain files."
+license = "Apache-2.0/MIT"
 homepage = "https://github.com/stjude-rust-labs/chainfile"
 repository = "https://github.com/stjude-rust-labs/chainfile"
 documentation = "https://docs.rs/chainfile"
-version = "0.2.1"
+edition = "2021"
+rust-version = "1.80.0"
+
+[dependencies]
+omics = { version = "0.1.0", features = ["coordinate"] }
+nonempty = "0.9.0"
+rust-lapper = "1.1.0"
 
 [dev-dependencies]
 flate2 = "1.0.25"
 noodles = { version = "0.35.0", features = ["core", "fasta"] }
-
-[dependencies]
-rust-lapper = "1.1.0"

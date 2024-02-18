@@ -9,4 +9,6 @@ Before submitting this PR, please make sure:
 - [ ] Your code builds clean without any errors or warnings (use `cargo test` and `cargo clippy`).
 - [ ] You have added tests (when appropriate).
 - [ ] You have updated the wiki (when appropriate).
-- [ ] You have updated the README or other documentation to account for these changes (when appropriate).
+- [ ] You have updated the README or other documentation to account for these
+      changes (when appropriate).
+- [ ] You have added an entry in the `CHANGELOG.md`.

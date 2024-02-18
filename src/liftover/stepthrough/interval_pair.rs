@@ -1,15 +1,16 @@
 //! Pairs of intervals that match contiguously.
 
-use crate::core::interval;
-use crate::core::Coordinate;
-use crate::core::Interval;
+use omics::coordinate::interval;
+use omics::coordinate::interval::zero::Interval;
+use omics::coordinate::zero::Coordinate;
 
 /// An error related to constructing a contiguous interval pair.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum Error {
-    /// The two intervals don't have the same size, so they can't linearly map
-    /// to one another.
+    /// The two intervals don't have the same size. As such, they can't
+    /// contiguously map to one another.
     DistancesDontMatch(usize, usize),
+
     /// An invalid interval was detected.
     InvalidInterval(interval::Error),
 }
@@ -41,12 +42,11 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Interval;
-    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use chainfile as chain;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::interval::zero::Interval;
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:0-1000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:+:0-1000".parse::<Interval>()?;
     /// ContiguousIntervalPair::try_new(reference, query)?;
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -67,12 +67,11 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Interval;
-    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use chainfile as chain;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::interval::zero::Interval;
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:0-1000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:+:0-1000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference.clone(), query)?;
     ///
     /// assert_eq!(pair.reference(), &reference);
@@ -88,12 +87,11 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Interval;
-    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use chainfile as chain;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::interval::zero::Interval;
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:0-1000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:+:0-1000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query.clone())?;
     ///
     /// assert_eq!(pair.query(), &query);
@@ -110,32 +108,31 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Coordinate;
-    /// use chain::core::Interval;
-    /// use chain::core::Strand;
-    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use chainfile as chain;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::Strand;
+    /// use omics::coordinate::interval::zero::Interval;
+    /// use omics::coordinate::zero::Coordinate;
     ///
     /// // Positive-stranded to positive-stranded
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:1000-2000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:+:1000-2000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let old = Coordinate::try_new("seq0", 50, Strand::Positive)?;
-    /// let new = Coordinate::try_new("seq1", 1050, Strand::Positive)?;
+    /// let old = Coordinate::try_new("seq0", Strand::Positive, 50)?;
+    /// let new = Coordinate::try_new("seq1", Strand::Positive, 1050)?;
     /// let lifted = pair.liftover(&old).unwrap().unwrap();
     ///
     /// assert_eq!(new, lifted);
     ///
     /// // Positive-stranded to negative-stranded
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:2000-1000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:-:2000-1000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let old = Coordinate::try_new("seq0", 50, Strand::Positive)?;
-    /// let new = Coordinate::try_new("seq1", 1950, Strand::Negative)?;
+    /// let old = Coordinate::try_new("seq0", Strand::Positive, 50)?;
+    /// let new = Coordinate::try_new("seq1", Strand::Negative, 1950)?;
     /// let lifted = pair.liftover(&old).unwrap().unwrap();
     ///
     /// assert_eq!(new, lifted);
@@ -143,10 +140,12 @@ impl ContiguousIntervalPair {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn liftover(&self, coordinate: &Coordinate) -> Option<Result<Coordinate, Error>> {
-        let offset = self.reference().offset_from_start(coordinate)?;
+        let offset = self.reference().offset(coordinate)?;
+
         self.query()
-            .translate_offset_from_start(offset)
-            .map(|result| result.map_err(Error::InvalidInterval))
+            .translate(offset)
+            .map_err(Error::InvalidInterval)
+            .transpose()
     }
 
     /// Consumes self to clamp an interval pair to the specified `interval` for
@@ -156,62 +155,61 @@ impl ContiguousIntervalPair {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Coordinate;
-    /// use chain::core::Interval;
-    /// use chain::core::Strand;
-    /// use chain::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
-    /// use chainfile as chain;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::Strand;
+    /// use omics::coordinate::interval::zero::Interval;
+    /// use omics::coordinate::zero::Coordinate;
     ///
     /// // Positive-stranded to positive-stranded
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:1000-2000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:+:1000-2000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let interval = "seq0:50-51".parse::<Interval>()?;
+    /// let interval = "seq0:+:50-51".parse::<Interval>()?;
     /// let result = pair.clamp(&interval)?;
     ///
     /// assert_eq!(
     ///     result.reference().start(),
-    ///     &Coordinate::try_new("seq0", 50, Strand::Positive)?
+    ///     &Coordinate::try_new("seq0", Strand::Positive, 50)?
     /// );
     /// assert_eq!(
     ///     result.reference().end(),
-    ///     &Coordinate::try_new("seq0", 51, Strand::Positive)?
+    ///     &Coordinate::try_new("seq0", Strand::Positive, 51)?
     /// );
     /// assert_eq!(
     ///     result.query().start(),
-    ///     &Coordinate::try_new("seq1", 1050, Strand::Positive)?
+    ///     &Coordinate::try_new("seq1", Strand::Positive, 1050)?
     /// );
     /// assert_eq!(
     ///     result.query().end(),
-    ///     &Coordinate::try_new("seq1", 1051, Strand::Positive)?
+    ///     &Coordinate::try_new("seq1", Strand::Positive, 1051)?
     /// );
     ///
     /// // Positive-stranded to negative-stranded
     ///
-    /// let reference = "seq0:0-1000".parse::<Interval>()?;
-    /// let query = "seq1:2000-1000".parse::<Interval>()?;
+    /// let reference = "seq0:+:0-1000".parse::<Interval>()?;
+    /// let query = "seq1:-:2000-1000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let interval = "seq0:50-51".parse::<Interval>()?;
+    /// let interval = "seq0:+:50-51".parse::<Interval>()?;
     /// let result = pair.clamp(&interval)?;
     ///
     /// assert_eq!(
     ///     result.reference().start(),
-    ///     &Coordinate::try_new("seq0", 50, Strand::Positive)?
+    ///     &Coordinate::try_new("seq0", Strand::Positive, 50)?
     /// );
     /// assert_eq!(
     ///     result.reference().end(),
-    ///     &Coordinate::try_new("seq0", 51, Strand::Positive)?
+    ///     &Coordinate::try_new("seq0", Strand::Positive, 51)?
     /// );
     /// assert_eq!(
     ///     result.query().start(),
-    ///     &Coordinate::try_new("seq1", 1950, Strand::Negative)?
+    ///     &Coordinate::try_new("seq1", Strand::Negative, 1950)?
     /// );
     /// assert_eq!(
     ///     result.query().end(),
-    ///     &Coordinate::try_new("seq1", 1949, Strand::Negative)?
+    ///     &Coordinate::try_new("seq1", Strand::Negative, 1949)?
     /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -269,18 +267,19 @@ mod tests {
 
     #[test]
     fn test_it_constructs_a_valid_interval_pair() -> Result<(), Box<dyn std::error::Error>> {
-        let reference = "seq0:0-1000".parse::<Interval>()?;
-        let query = "seq1:1000-2000".parse::<Interval>()?;
+        let reference = "seq0:+:0-1000".parse::<Interval>()?;
+        let query = "seq1:+:1000-2000".parse::<Interval>()?;
 
         ContiguousIntervalPair::try_new(reference, query)?;
+
         Ok(())
     }
 
     #[test]
     fn test_it_fails_when_the_interval_sizes_dont_match() -> Result<(), Box<dyn std::error::Error>>
     {
-        let reference = "seq0:0-1000".parse::<Interval>()?;
-        let query = "seq1:0-20000".parse::<Interval>()?;
+        let reference = "seq0:+:0-1000".parse::<Interval>()?;
+        let query = "seq1:+:0-20000".parse::<Interval>()?;
 
         let err = ContiguousIntervalPair::try_new(reference, query).unwrap_err();
         assert!(matches!(err, Error::DistancesDontMatch(_, _)));

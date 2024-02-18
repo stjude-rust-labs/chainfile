@@ -4,42 +4,42 @@ use std::io::BufRead;
 use std::io::{self};
 use std::iter;
 
+use crate::Line;
+use crate::alignment::section::Sections;
 use crate::line;
-use crate::line::Line;
 
-pub mod section;
+/// The new line character.
+const NEW_LINE: char = '\n';
 
-pub use section::AlignmentDataSection;
-pub use section::AlignmentDataSections;
+/// The carriage return character.
+const CARRIAGE_RETURN: char = '\r';
 
-/// An error related to the parsing of a chain file.
+/// An error related to a [`Reader`].
 #[derive(Debug)]
-pub enum ParseError {
+pub enum Error {
     /// An I/O error.
-    InputOutput(io::Error),
-    /// A line parsing error.
-    LineParsing(line::ParseError),
+    Io(io::Error),
+
+    /// A line error.
+    Line(line::Error),
 }
 
-impl std::fmt::Display for ParseError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::InputOutput(err) => write!(f, "i/o error: {}", err),
-            ParseError::LineParsing(err) => write!(f, "line parsing error: {}", err),
+            Error::Io(err) => write!(f, "i/o error: {}", err),
+            Error::Line(err) => write!(f, "line error: {}", err),
         }
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for Error {}
 
 /// A chain file reader.
 #[derive(Clone, Debug)]
-pub struct Reader<T>
+pub struct Reader<T>(T)
 where
-    T: BufRead,
-{
-    inner: T,
-}
+    T: BufRead;
 
 impl<T> Reader<T>
 where
@@ -50,10 +50,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let reader = chain::Reader::new(&data[..]);
+    /// let reader = chainfile::Reader::new(&data[..]);
     /// ```
     pub fn new(inner: T) -> Self {
         Self::from(inner)
@@ -66,16 +64,14 @@ where
     /// ```
     /// use std::io;
     ///
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
     ///
-    /// let reader = chain::Reader::new(cursor);
+    /// let reader = chainfile::Reader::new(cursor);
     /// assert_eq!(reader.inner().position(), 0);
     /// ```
     pub fn inner(&self) -> &T {
-        &self.inner
+        &self.0
     }
 
     /// Gets a mutable reference to the inner reader.
@@ -85,17 +81,15 @@ where
     /// ```
     /// use std::io::Read;
     ///
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let mut reader = chain::Reader::new(&data[..]);
+    /// let mut reader = chainfile::Reader::new(&data[..]);
     /// let mut buffer = vec![0; data.len()];
     ///
     /// reader.inner_mut().read_exact(&mut buffer).unwrap();
     /// assert_eq!(buffer, data[..]);
     /// ```
     pub fn inner_mut(&mut self) -> &mut T {
-        &mut self.inner
+        &mut self.0
     }
 
     /// Consumes self and returns the inner reader.
@@ -105,10 +99,8 @@ where
     /// ```
     /// use std::io::BufRead;
     ///
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let reader = chain::Reader::new(&data[..]);
+    /// let reader = chainfile::Reader::new(&data[..]);
     /// let mut lines = reader.into_inner().lines().map(|line| line.unwrap());
     ///
     /// assert_eq!(
@@ -120,7 +112,7 @@ where
     /// assert_eq!(lines.next(), None);
     /// ```
     pub fn into_inner(self) -> T {
-        self.inner
+        self.0
     }
 
     /// Reads a raw, textual line from the underlying reader.
@@ -130,10 +122,8 @@ where
     /// ```
     /// use std::io;
     ///
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let mut reader = chain::Reader::new(&data[..]);
+    /// let mut reader = chainfile::Reader::new(&data[..]);
     ///
     /// let mut buffer = String::new();
     ///
@@ -151,7 +141,7 @@ where
     /// # Ok::<(), io::Error>(())
     /// ```
     pub fn read_line_raw(&mut self, buffer: &mut String) -> io::Result<usize> {
-        read_line(&mut self.inner, buffer)
+        read_line(self.inner_mut(), buffer)
     }
 
     /// Attempts to read a single `Line` from the underlying reader.
@@ -161,11 +151,10 @@ where
     /// ```
     /// use std::io;
     ///
-    /// use chain::line::Line;
-    /// use chainfile as chain;
+    /// use chainfile::Line;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let mut reader = chain::Reader::new(&data[..]);
+    /// let mut reader = chainfile::Reader::new(&data[..]);
     ///
     /// assert!(matches!(reader.read_line()?, Some(Line::Header(_))));
     /// assert!(matches!(reader.read_line()?, Some(Line::AlignmentData(_))));
@@ -174,16 +163,14 @@ where
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn read_line(&mut self) -> Result<Option<Line>, ParseError> {
+    pub fn read_line(&mut self) -> Result<Option<Line>, Error> {
         let mut buffer = String::new();
-        let read = self
-            .read_line_raw(&mut buffer)
-            .map_err(ParseError::InputOutput)?;
+        let read = self.read_line_raw(&mut buffer).map_err(Error::Io)?;
 
         match read {
             0 => Ok(None),
             _ => {
-                let line = buffer.parse::<Line>().map_err(ParseError::LineParsing)?;
+                let line = buffer.parse::<Line>().map_err(Error::Line)?;
                 Ok(Some(line))
             }
         }
@@ -196,10 +183,8 @@ where
     /// ```
     /// use std::io::BufRead;
     ///
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let mut reader = chain::Reader::new(&data[..]);
+    /// let mut reader = chainfile::Reader::new(&data[..]);
     ///
     /// let lines = reader.lines().collect::<Vec<_>>();
     /// assert_eq!(lines.len(), 3);
@@ -224,16 +209,14 @@ where
         })
     }
 
-    /// Returns an iterator over the alignment data sections in the underlying
+    /// Returns an iterator over the alignment sections in the underlying
     /// reader.
     ///
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
-    ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
-    /// let mut reader = chain::Reader::new(&data[..]);
+    /// let mut reader = chainfile::Reader::new(&data[..]);
     ///
     /// let sections = reader
     ///     .sections()
@@ -243,8 +226,8 @@ where
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn sections(&mut self) -> AlignmentDataSections<'_, T> {
-        AlignmentDataSections::new(self)
+    pub fn sections(&mut self) -> Sections<'_, T> {
+        Sections::new(self)
     }
 }
 
@@ -253,7 +236,7 @@ where
     T: BufRead,
 {
     fn from(inner: T) -> Self {
-        Self { inner }
+        Self(inner)
     }
 }
 
@@ -265,15 +248,12 @@ fn read_line<T>(reader: &mut T, buffer: &mut String) -> io::Result<usize>
 where
     T: BufRead,
 {
-    const LINE_FEED: char = '\n';
-    const CARRIAGE_RETURN: char = '\r';
-
     buffer.clear();
 
     match reader.read_line(buffer) {
         Ok(0) => Ok(0),
         Ok(n) => {
-            if buffer.ends_with(LINE_FEED) {
+            if buffer.ends_with(NEW_LINE) {
                 buffer.pop();
 
                 if buffer.ends_with(CARRIAGE_RETURN) {

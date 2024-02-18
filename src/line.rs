@@ -1,50 +1,46 @@
 //! A line within a chain file.
 
-use std::str::FromStr;
-
-use crate::record::alignment_data;
-use crate::record::alignment_data::AlignmentDataRecord;
-use crate::record::header;
-use crate::record::header::HeaderRecord;
-use crate::record::header::HEADER_PREFIX;
+use crate::alignment;
+use crate::alignment::section::data;
+use crate::alignment::section::header;
+use crate::alignment::section::header::PREFIX;
 
 /// An error associated with parsing the chain file.
 #[derive(Debug)]
-pub enum ParseError {
+pub enum Error {
     /// An invalid header record.
-    InvalidHeaderRecord(header::ParseError, String),
+    InvalidHeaderRecord(header::Error, String),
+
     /// An invalid alignment data record.
-    InvalidAlignmentDataRecord(alignment_data::ParseError, String),
+    InvalidAlignmentDataRecord(data::Error, String),
 }
 
-impl std::fmt::Display for ParseError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::InvalidHeaderRecord(err, line) => {
-                write!(f, "invalid header record: {}\n\nline: {}", err, line)
+            Error::InvalidHeaderRecord(err, line) => {
+                write!(f, "invalid header record: {}: line: {}", err, line)
             }
-            ParseError::InvalidAlignmentDataRecord(err, line) => {
-                write!(
-                    f,
-                    "invalid alignment data record: {}\n\nline: {}",
-                    err, line
-                )
+            Error::InvalidAlignmentDataRecord(err, line) => {
+                write!(f, "invalid alignment data record: {}: line: {}", err, line)
             }
         }
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for Error {}
 
 /// A line within a chain file.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Line {
     /// An empty line.
     Empty,
+
     /// A header line.
-    Header(HeaderRecord),
+    Header(header::Record),
+
     /// An alignment data line.
-    AlignmentData(AlignmentDataRecord),
+    AlignmentData(alignment::section::data::Record),
 }
 
 impl std::fmt::Display for Line {
@@ -57,20 +53,20 @@ impl std::fmt::Display for Line {
     }
 }
 
-impl FromStr for Line {
-    type Err = ParseError;
+impl std::str::FromStr for Line {
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             Ok(Self::Empty)
-        } else if s.starts_with(HEADER_PREFIX) {
-            s.parse::<HeaderRecord>()
+        } else if s.starts_with(PREFIX) {
+            s.parse::<header::Record>()
                 .map(Line::Header)
-                .map_err(|e| ParseError::InvalidHeaderRecord(e, s.into()))
+                .map_err(|e| Error::InvalidHeaderRecord(e, s.into()))
         } else {
-            s.parse::<AlignmentDataRecord>()
+            s.parse::<alignment::section::data::Record>()
                 .map(Line::AlignmentData)
-                .map_err(|e| ParseError::InvalidAlignmentDataRecord(e, s.into()))
+                .map_err(|e| Error::InvalidAlignmentDataRecord(e, s.into()))
         }
     }
 }
@@ -78,7 +74,7 @@ impl FromStr for Line {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::record::alignment_data::AlignmentDataRecordType;
+    use crate::alignment::section::data::record::Kind;
 
     #[test]
     pub fn test_valid_header_line() -> Result<(), Box<dyn std::error::Error>> {
@@ -93,10 +89,7 @@ pub mod tests {
         let line = "9\t0\t1".parse::<Line>()?;
         assert!(matches!(line, Line::AlignmentData(_)));
         if let Line::AlignmentData(record) = line {
-            assert_eq!(
-                *record.record_type(),
-                AlignmentDataRecordType::NonTerminating
-            );
+            assert_eq!(*record.record_type(), Kind::NonTerminating);
         }
         Ok(())
     }
@@ -106,7 +99,7 @@ pub mod tests {
         let line = "9".parse::<Line>()?;
         assert!(matches!(line, Line::AlignmentData(_)));
         if let Line::AlignmentData(record) = line {
-            assert_eq!(*record.record_type(), AlignmentDataRecordType::Terminating);
+            assert_eq!(*record.record_type(), Kind::Terminating);
         }
         Ok(())
     }
@@ -118,8 +111,8 @@ pub mod tests {
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "invalid header record: invalid id: invalid digit found in string\n\nline: chain 0 \
-             seq0 2 + 0 2 seq0 2 - 0 2 ?"
+            "invalid header record: parse error: invalid id: invalid digit found in string: line: \
+             chain 0 seq0 2 + 0 2 seq0 2 - 0 2 ?"
         );
         Ok(())
     }
@@ -129,8 +122,9 @@ pub mod tests {
         let err = "9\t1".parse::<Line>().unwrap_err();
         assert_eq!(
             err.to_string(),
-            "invalid alignment data record: invalid number of fields in alignment data: expected \
-             3 (non-terminating) or 1 (terminating) fields, found 2 fields\n\nline: 9\t1"
+            "invalid alignment data record: parse error: invalid number of fields in alignment \
+             data: expected 3 (non-terminating) or 1 (terminating) fields, found 2 fields: line: \
+             9\t1"
         );
         Ok(())
     }

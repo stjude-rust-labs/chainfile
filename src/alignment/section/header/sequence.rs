@@ -2,19 +2,29 @@
 
 use std::num::ParseIntError;
 
-use crate::core::strand::ParseStrandError;
-use crate::core::Strand;
-use crate::record::header::HEADER_DELIMITER;
+use omics::coordinate;
+use omics::coordinate::Strand;
+use omics::coordinate::interval;
+use omics::coordinate::interval::r#trait::Interval as _;
+use omics::coordinate::interval::zero::Interval;
+use omics::coordinate::strand;
+use omics::coordinate::system::Zero;
+use omics::coordinate::zero::Coordinate;
+
+use crate::alignment::section::header::DELIMITER;
 
 /// Errors associated with parsing a sequence.
 #[derive(Debug)]
 pub enum ParseError {
     /// An invalid chromosome size.
     InvalidChromosomeSize(ParseIntError),
+
     /// An invalid strand.
-    InvalidStrand(ParseStrandError),
+    InvalidStrand(strand::Error),
+
     /// An invalid alignment start.
     InvalidAlignmentStart(ParseIntError),
+
     /// An invalid alignment end.
     InvalidAlignmentEnd(ParseIntError),
 }
@@ -32,17 +42,49 @@ impl std::fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
+/// An error related to a [`Sequence`].
+#[derive(Debug)]
+pub enum Error {
+    /// A coordinate error.
+    Coordinate(coordinate::Error),
+
+    /// An interval error.
+    Interval(interval::Error),
+
+    /// A parse error.
+    Parse(ParseError),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Coordinate(err) => write!(f, "coordinate error: {err}"),
+            Error::Interval(err) => write!(f, "interval error: {err}"),
+            Error::Parse(err) => write!(f, "parse error: {err}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+/// A [`Result`](std::result::Result) with an [`Error`].
+type Result<T> = std::result::Result<T, Error>;
+
 /// The sequence portion(s) of a header record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Sequence {
     /// The chromosome name.
     chromosome_name: String,
+
     /// The chromosome size.
     chromosome_size: usize,
+
     /// The strand.
     strand: Strand,
+
     /// The start of the alignment.
     alignment_start: usize,
+
     /// The end of the alignment.
     alignment_end: usize,
 }
@@ -53,9 +95,18 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
+    /// use omics::coordinate::Strand;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2");
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
+    ///
+    /// assert_eq!(sequence.chromosome_name(), "seq0");
+    /// assert_eq!(sequence.chromosome_size(), 2);
+    /// assert_eq!(sequence.strand(), &Strand::Positive);
+    /// assert_eq!(sequence.alignment_start(), 0);
+    /// assert_eq!(sequence.alignment_end(), 2);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn new(
         chromosome_name: &str,
@@ -63,19 +114,21 @@ impl Sequence {
         strand: &str,
         alignment_start: &str,
         alignment_end: &str,
-    ) -> Result<Self, ParseError> {
+    ) -> Result<Self> {
         Ok(Self {
             chromosome_name: chromosome_name.into(),
             chromosome_size: chromosome_size
                 .parse()
-                .map_err(ParseError::InvalidChromosomeSize)?,
-            strand: strand.parse().map_err(ParseError::InvalidStrand)?,
+                .map_err(|err| Error::Parse(ParseError::InvalidChromosomeSize(err)))?,
+            strand: strand
+                .parse()
+                .map_err(|err| Error::Parse(ParseError::InvalidStrand(err)))?,
             alignment_start: alignment_start
                 .parse()
-                .map_err(ParseError::InvalidAlignmentStart)?,
+                .map_err(|err| Error::Parse(ParseError::InvalidAlignmentStart(err)))?,
             alignment_end: alignment_end
                 .parse()
-                .map_err(ParseError::InvalidAlignmentEnd)?,
+                .map_err(|err| Error::Parse(ParseError::InvalidAlignmentEnd(err)))?,
         })
     }
 
@@ -84,9 +137,9 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
     ///
     /// assert_eq!(sequence.chromosome_name(), "seq0");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -100,9 +153,9 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
     ///
     /// assert_eq!(sequence.chromosome_size(), 2);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -116,10 +169,10 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chain::core::Strand;
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
+    /// use omics::coordinate::Strand;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
     ///
     /// assert_eq!(sequence.strand(), &Strand::Positive);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -133,9 +186,9 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
     ///
     /// assert_eq!(sequence.alignment_start(), 0);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -149,9 +202,9 @@ impl Sequence {
     /// # Examples
     ///
     /// ```
-    /// use chainfile as chain;
+    /// use chainfile::alignment::section::header::Sequence;
     ///
-    /// let sequence = chain::record::header::Sequence::new("seq0", "2", "+", "0", "2")?;
+    /// let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
     ///
     /// assert_eq!(sequence.alignment_end(), 2);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -177,7 +230,38 @@ impl std::fmt::Display for Sequence {
             alignment_end.as_str(),
         ];
 
-        write!(f, "{}", parts.join(HEADER_DELIMITER.to_string().as_str()))
+        write!(f, "{}", parts.join(DELIMITER.to_string().as_str()))
+    }
+}
+
+impl TryFrom<Sequence> for omics::coordinate::Interval<Zero> {
+    type Error = Error;
+
+    fn try_from(value: Sequence) -> Result<Self> {
+        let start = Coordinate::try_new(
+            value.chromosome_name().clone(),
+            Strand::Positive,
+            value.alignment_start(),
+        )
+        .map_err(Error::Coordinate)?;
+
+        let end = Coordinate::try_new(
+            value.chromosome_name().clone(),
+            Strand::Positive,
+            value.alignment_end(),
+        )
+        .map_err(Error::Coordinate)?;
+
+        let interval = Interval::try_new(start, end).map_err(Error::Interval)?;
+
+        match value.strand() {
+            Strand::Positive => Ok(interval),
+            Strand::Negative => {
+                // SAFETY: for all of the sequences read from chainfiles, this
+                // will always unwrap.
+                Ok(interval.complement().map_err(Error::Interval)?.unwrap())
+            }
+        }
     }
 }
 
@@ -186,7 +270,7 @@ pub mod tests {
     use super::*;
 
     #[test]
-    fn test_sequence_creation() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_sequence_creation() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let sequence = Sequence::new("seq0", "2", "+", "0", "2")?;
         assert_eq!(sequence.chromosome_name(), "seq0");
         assert_eq!(sequence.chromosome_size(), 2);
@@ -197,55 +281,55 @@ pub mod tests {
     }
 
     #[test]
-    fn test_invalid_chromosome_size() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_invalid_chromosome_size() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let err = Sequence::new("seq0", "A", "+", "0", "2").unwrap_err();
 
         assert_eq!(
             err.to_string(),
-            "invalid chromosome size: invalid digit found in string"
+            "parse error: invalid chromosome size: invalid digit found in string"
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_invalid_strand() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_invalid_strand() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let err = Sequence::new("seq0", "2", "?", "0", "2").unwrap_err();
 
         assert_eq!(
             err.to_string(),
-            "invalid strand: parse strand error: ? is not a valid strand"
+            "parse error: invalid strand: parse error: invalid value for strand: ?"
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_invalid_alignment_start() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_invalid_alignment_start() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let err = Sequence::new("seq0", "2", "+", "?", "2").unwrap_err();
 
         assert_eq!(
             err.to_string(),
-            "invalid alignment start: invalid digit found in string"
+            "parse error: invalid alignment start: invalid digit found in string"
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_invalid_alignment_end() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_invalid_alignment_end() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let err = Sequence::new("seq0", "2", "+", "0", "?").unwrap_err();
 
         assert_eq!(
             err.to_string(),
-            "invalid alignment end: invalid digit found in string"
+            "parse error: invalid alignment end: invalid digit found in string"
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_sequence_display() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_sequence_display() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let sequence = Sequence::new("seq0", "2", "+", "0", "1")?;
         assert_eq!(sequence.to_string(), "seq0 2 + 0 1");
         Ok(())
