@@ -12,6 +12,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The inner data structures were replaced with facilities provided by the
   [`omics`](https://github.com/stjude-rust-labs/omics) family of crates
   ([#4](https://github.com/stjude-rust-labs/chainfile/pull/4)).
+- In a subsequent pull request, the `omics` crates were updated to `v0.2.0`.
+  This was a much more robust system for representing coordinates
+  ([#5](https://github.com/stjude-rust-labs/chainfile/pull/5)).
 
 ## 0.2.1 — 09-09-2023
 

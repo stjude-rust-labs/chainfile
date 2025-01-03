@@ -1,4 +1,4 @@
-//! A builder for an alignment section.
+//! Builders for an alignment section.
 
 use nonempty::NonEmpty;
 
@@ -169,42 +169,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_fails_to_produce_a_section_when_no_header_is_provided()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn fails_with_no_header() {
         let err = Builder::default()
-            .push_data("1".parse()?)
+            .push_data("1".parse().unwrap())
             .try_build()
             .unwrap_err();
 
         assert_eq!(err.to_string(), "missing required field: header");
-
-        Ok(())
     }
 
     #[test]
-
-    fn it_fails_to_produce_a_section_when_the_header_field_is_provided_more_than_once()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn fails_with_multiple_headers() {
         let err = Builder::default()
-            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse()?)?
-            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse()?)
+            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse().unwrap())
+            .unwrap()
+            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse().unwrap())
             .unwrap_err();
 
         assert_eq!(err.to_string(), "singular field set multiple times: header");
-
-        Ok(())
     }
 
     #[test]
-    fn it_fails_to_produce_a_section_when_no_data_is_provided()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn fails_with_no_data() {
         let err = Builder::default()
-            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse()?)?
+            .header("chain 0 seq0 2 + 0 2 seq0 2 - 0 2 1".parse().unwrap())
+            .unwrap()
             .try_build()
             .unwrap_err();
 
         assert_eq!(err.to_string(), "missing required field: data");
-
-        Ok(())
     }
 }

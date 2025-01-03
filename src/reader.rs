@@ -144,7 +144,7 @@ where
         read_line(self.inner_mut(), buffer)
     }
 
-    /// Attempts to read a single `Line` from the underlying reader.
+    /// Attempts to read a [`Line`] from the underlying reader.
     ///
     /// # Examples
     ///
@@ -156,16 +156,25 @@ where
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let mut reader = chainfile::Reader::new(&data[..]);
     ///
-    /// assert!(matches!(reader.read_line()?, Some(Line::Header(_))));
-    /// assert!(matches!(reader.read_line()?, Some(Line::AlignmentData(_))));
-    /// assert!(matches!(reader.read_line()?, Some(Line::AlignmentData(_))));
-    /// assert!(matches!(reader.read_line()?, None));
+    /// let mut buffer = String::new();
+    /// assert!(matches!(
+    ///     reader.read_line(&mut buffer)?,
+    ///     Some(Line::Header(_))
+    /// ));
+    /// assert!(matches!(
+    ///     reader.read_line(&mut buffer)?,
+    ///     Some(Line::AlignmentData(_))
+    /// ));
+    /// assert!(matches!(
+    ///     reader.read_line(&mut buffer)?,
+    ///     Some(Line::AlignmentData(_))
+    /// ));
+    /// assert!(matches!(reader.read_line(&mut buffer)?, None));
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn read_line(&mut self) -> Result<Option<Line>, Error> {
-        let mut buffer = String::new();
-        let read = self.read_line_raw(&mut buffer).map_err(Error::Io)?;
+    pub fn read_line(&mut self, buffer: &mut String) -> Result<Option<Line>, Error> {
+        let read = self.read_line_raw(buffer).map_err(Error::Io)?;
 
         match read {
             0 => Ok(None),
@@ -274,19 +283,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_read_line() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_read_line() {
         let data = b"hello\r\nworld!";
         let mut cursor = io::Cursor::new(data);
 
         let mut buffer = String::new();
-        let len = read_line(&mut cursor, &mut buffer)?;
+        let len = read_line(&mut cursor, &mut buffer).unwrap();
         assert_eq!(buffer, "hello");
         assert_eq!(len, 7);
 
-        let len = read_line(&mut cursor, &mut buffer)?;
+        let len = read_line(&mut cursor, &mut buffer).unwrap();
         assert_eq!(buffer, "world!");
         assert_eq!(len, 6);
-
-        Ok(())
     }
 }

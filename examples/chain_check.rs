@@ -29,15 +29,23 @@ use chain::liftover;
 use chainfile as chain;
 use flate2::read::GzDecoder;
 use noodles::fasta;
+use noodles::fasta::record::Sequence;
 use omics::coordinate::Strand;
-use omics::coordinate::interval::zero::Interval;
-use omics::coordinate::position::Value;
-use omics::coordinate::zero::Coordinate;
+use omics::coordinate::interbase::Coordinate;
+use omics::coordinate::interval::interbase::Interval;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Read arguments
+    ////////////////////////////////////////////////////////////////////////////////////
+
     let chain_file_path = env::args().nth(1).expect("missing chainfile path");
     let reference_fasta_path = env::args().nth(2).expect("missing reference fasta path");
     let query_fasta_path = env::args().nth(3).expect("missing query fasta path");
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Build the machine
+    ////////////////////////////////////////////////////////////////////////////////////
 
     let chain = File::open(chain_file_path)
         .map(GzDecoder::new)
@@ -46,13 +54,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let machine = liftover::machine::builder::Builder.try_build_from(chain)?;
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Gather intervals to search
+    ////////////////////////////////////////////////////////////////////////////////////
+
     let mut reference = HashMap::new();
     for result in fasta::reader::Builder
         .build_from_path(reference_fasta_path)?
         .records()
     {
         let record = result?;
-        reference.insert(record.name().to_string(), record.sequence().clone());
+        let name = String::from_utf8_lossy(record.name()).to_string();
+        reference.insert(name, record.sequence().clone());
     }
 
     let mut query = HashMap::new();
@@ -61,19 +74,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .records()
     {
         let record = result?;
-        query.insert(record.name().to_string(), record.sequence().clone());
+        let name = String::from_utf8_lossy(record.name()).to_string();
+        query.insert(name, record.sequence().clone());
     }
 
+    let intervals = reference
+        .iter()
+        .map(|(name, reference_sequence)| {
+            Interval::try_new(
+                Coordinate::new(name.as_str(), Strand::Positive, 0_u64),
+                Coordinate::new(
+                    name.as_str(),
+                    Strand::Positive,
+                    reference_sequence.len() as u64,
+                ),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Do the comparison
+    ////////////////////////////////////////////////////////////////////////////////////
+
     let mut total_positions = 0usize;
-    let mut mismatches = 0usize;
+    let mut total_mismatches = 0usize;
 
-    for (name, reference_sequence) in reference {
-        let interval = Interval::try_new(
-            Coordinate::try_new(name.clone(), Strand::Positive, 0)?,
-            Coordinate::try_new(name, Strand::Positive, reference_sequence.len())?,
-        )?;
+    let mut positive_positions = 0usize;
+    let mut positive_mismatches = 0usize;
 
-        let results = match machine.liftover(&interval) {
+    let mut negative_positions = 0usize;
+    let mut negative_mismatches = 0usize;
+
+    for interval in intervals {
+        let reference_sequence = reference
+            .get(interval.contig().as_str())
+            .unwrap_or_else(|| {
+                panic!(
+                    "reference FASTA did not contain necessary contig \"{}\"; are the FASTA files \
+                     and chain file correct?",
+                    interval.contig().as_str()
+                )
+            });
+
+        let results = match machine.liftover(interval.clone()) {
             Some(results) => results,
             None => {
                 println!(
@@ -85,8 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         for region in results {
+            let query_strand = region.query().strand();
+
             let query_sequence = query
-                .get(region.query().contig().inner())
+                .get(region.query().contig().as_str())
                 .unwrap_or_else(|| {
                     panic!(
                         "query FASTA did not contain necessary contig \"{}\": are the FASTA files \
@@ -95,38 +141,85 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                 });
 
-            let reference = get_sequence_for_interval(&reference_sequence, region.reference());
-            let query = get_sequence_for_interval(query_sequence, region.query());
+            let (reference_interval, query_interval) = region.into_parts();
+            let reference = get_sequence_for_interval(reference_sequence, reference_interval);
+            let query = get_sequence_for_interval(query_sequence, query_interval);
 
             assert_eq!(reference.len(), query.len());
-            total_positions += reference.len();
-            mismatches += count_mismatches(&reference, &query);
+
+            let positions = query.len();
+            let mismatches = count_mismatches(&reference, &query);
+
+            total_positions += positions;
+            total_mismatches += mismatches;
+
+            if query_strand == Strand::Positive {
+                positive_positions += positions;
+                positive_mismatches += mismatches;
+            } else {
+                negative_positions += positions;
+                negative_mismatches += mismatches;
+            }
         }
     }
 
-    let result = (1.0 - (mismatches as f64 / total_positions as f64)) * 100.0;
-    println!("Total mismatches found: {}", mismatches);
+    println!();
+
+    let total_matched = (1.0 - (total_mismatches as f64 / total_positions as f64)) * 100.0;
+    println!("Total mismatches found: {}", total_mismatches);
     println!("Total positions checked: {}", total_positions);
-    println!("Percentage match for lifted regions: {:.1}%", result);
+    println!("Percentage match for all regions: {:.1}%", total_matched);
+
+    println!();
+
+    let positive_matched = (1.0 - (positive_mismatches as f64 / positive_positions as f64)) * 100.0;
+    println!(
+        "> Positive strand mismatches found: {}",
+        positive_mismatches
+    );
+    println!(
+        "> Positive strand positions checked: {}",
+        positive_positions
+    );
+    println!(
+        "> Percentage match for positive stranded query regions: {:.1}%",
+        positive_matched
+    );
+
+    println!();
+
+    let negative_matched = (1.0 - (negative_mismatches as f64 / negative_positions as f64)) * 100.0;
+    println!(
+        "> Negative strand mismatches found: {}",
+        negative_mismatches
+    );
+    println!(
+        "> Negative strand positions checked: {}",
+        negative_positions
+    );
+    println!(
+        "> Percentage match for negative stranded regions: {:.1}%",
+        negative_matched
+    );
 
     Ok(())
 }
 
-fn get_sequence_for_interval(
-    sequence: &fasta::record::Sequence,
-    interval: &Interval,
-) -> Vec<Nucleotide> {
-    let result = sequence
-        .slice(parse_interval(interval))
+fn get_sequence_for_interval(sequence: &Sequence, interval: Interval) -> Vec<Nucleotide> {
+    let strand = interval.strand();
+    let interval = parse_interval(interval);
+
+    let nucleotides = sequence
+        .slice(interval)
         .expect("sequence lookup did not succeed: are the FASTA files and chain file correct?")
         .as_ref()
         .iter()
         .map(Nucleotide::from)
         .collect::<Vec<_>>();
 
-    match interval.strand() {
-        Strand::Positive => result,
-        Strand::Negative => result
+    match strand {
+        Strand::Positive => nucleotides,
+        Strand::Negative => nucleotides
             .into_iter()
             .rev()
             .map(|n| n.complement())
@@ -134,35 +227,22 @@ fn get_sequence_for_interval(
     }
 }
 
-fn parse_interval(interval: &Interval) -> noodles::core::region::Interval {
+fn parse_interval(interval: Interval) -> noodles::core::region::Interval {
+    let interval = interval.into_equivalent_base();
+
     let (start, end) = match interval.strand() {
-        Strand::Positive => {
-            let start = match interval.start().position().inner() {
-                Value::Usize(position) => noodles::core::Position::try_from(*position + 1).unwrap(),
-                Value::LowerBound => unreachable!(),
-            };
-
-            let end = match interval.end().position().inner() {
-                Value::Usize(position) => noodles::core::Position::try_from(*position).unwrap(),
-                Value::LowerBound => unreachable!(),
-            };
-
-            (start, end)
-        }
-        Strand::Negative => {
-            let start = match interval.end().position().inner() {
-                Value::Usize(position) => noodles::core::Position::try_from(*position + 2).unwrap(),
-                Value::LowerBound => noodles::core::Position::try_from(1).unwrap(),
-            };
-
-            let end = match interval.start().position().inner() {
-                Value::Usize(position) => noodles::core::Position::try_from(*position + 1).unwrap(),
-                Value::LowerBound => unreachable!(),
-            };
-
-            (start, end)
-        }
+        Strand::Positive => (
+            interval.start().position().get() as usize,
+            interval.end().position().get() as usize,
+        ),
+        Strand::Negative => (
+            interval.end().position().get() as usize,
+            interval.start().position().get() as usize,
+        ),
     };
+
+    let start = noodles::core::Position::new(start).unwrap();
+    let end = noodles::core::Position::new(end).unwrap();
 
     noodles::core::region::Interval::from(start..=end)
 }

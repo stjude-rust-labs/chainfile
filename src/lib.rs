@@ -38,9 +38,9 @@
 //! includes the ever-important
 //! [`ContiguousIntervalPair::liftover()`](crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair::liftover)
 //! method to attempt to translate a
-//! [`omics::coordinate::zero::Coordinate`] from the reference
-//! [`omics::coordinate::interval::zero::Interval`] to the query
-//! [`omics::coordinate::interval::zero::Interval`] if the coordinate falls
+//! [`omics::coordinate::interbase::Coordinate`] from the reference
+//! [`omics::coordinate::interval::interbase::Interval`] to the query
+//! [`omics::coordinate::interval::interbase::Interval`] if the coordinate falls
 //! within the [`Section`](crate::alignment::Section).
 //!
 //! Below is a representative example of how you might want to access and
@@ -73,7 +73,7 @@
 //! experience of lifting over intervals and coordinates.
 //!
 //! Foundationally, [`liftover::Machine`] provides the capability to attempt a
-//! lift over a [`omics::coordinate::interval::zero::Interval`] from the
+//! lift over a [`omics::coordinate::interval::interbase::Interval`] from the
 //! reference genome to the query genome via [`liftover::Machine::liftover()`].
 //! Perhaps importantly (and different from most other liftover tools that the
 //! author is aware of), this method provides the complete list of mapped
@@ -82,10 +82,10 @@
 //! position.
 //!
 //! Note that, while [`liftover::Machine::liftover()`] accepts a
-//! [`omics::coordinate::interval::zero::Interval`], one can always lift over a
-//! single position by constructing a 1-sized
-//! [`omics::coordinate::interval::zero::Interval`] containing only the position
-//! in question.
+//! [`omics::coordinate::interval::interbase::Interval`], one can always lift
+//! over a single position by constructing a 1-sized
+//! [`omics::coordinate::interval::interbase::Interval`] containing only the
+//! position in question.
 //!
 //! A [`liftover::Machine`] cannot be instantiated directly. Instead, you should
 //! use [`liftover::machine::Builder`] and the associated
@@ -99,13 +99,14 @@
 //!
 //! ```
 //! use chainfile as chain;
+//! use omics::coordinate::interval::interbase::Interval;
 //!
 //! let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
 //! let mut reader = chain::Reader::new(&data[..]);
 //! let machine = chain::liftover::machine::Builder::default().try_build_from(reader)?;
 //!
-//! let interval = "seq0:+:3-4".parse::<omics::coordinate::interval::zero::Interval>()?;
-//! for result in machine.liftover(&interval).unwrap() {
+//! let interval = "seq0:+:3-4".parse::<Interval>()?;
+//! for result in machine.liftover(interval).unwrap() {
 //!     println!("{} -> {}", result.reference(), result.query());
 //! }
 //!

@@ -4,8 +4,7 @@ use std::io::BufReader;
 
 use chainfile as chain;
 use flate2::read::GzDecoder;
-use omics::coordinate::interval::zero::Interval;
-use omics::coordinate::zero::Coordinate;
+use omics::coordinate::interval::interbase::Interval;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let interval = env::args().nth(1).expect("missing interval");
@@ -20,28 +19,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for result in reader.sections() {
         let section = result?;
-        let section_interval = Interval::try_new(
-            Coordinate::try_new(
-                section
-                    .header()
-                    .reference_sequence()
-                    .chromosome_name()
-                    .clone(),
-                section.header().reference_sequence().strand().clone(),
-                section.header().reference_sequence().alignment_start(),
-            )?,
-            Coordinate::try_new(
-                section
-                    .header()
-                    .reference_sequence()
-                    .chromosome_name()
-                    .clone(),
-                section.header().reference_sequence().strand().clone(),
-                section.header().reference_sequence().alignment_end(),
-            )?,
-        )?;
+        let section_interval = section.reference_sequence().interval()?;
 
-        if section_interval.contains(interval.start()) {
+        if section_interval.contains_coordinate(interval.start())
+            || section_interval.contains_coordinate(interval.end())
+        {
             println!("{}", section.header());
         }
     }

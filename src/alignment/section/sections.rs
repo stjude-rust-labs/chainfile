@@ -12,15 +12,9 @@ use crate::alignment::section::data::record::Kind;
 use crate::alignment::section::header;
 use crate::reader;
 
-/// The state of the iterator.
-#[derive(Debug)]
-enum State {
-    /// The reader is in-between alignment sections.
-    InBetweenSections,
-
-    /// The reader is in the middle of an alignment section.
-    ReadingSection,
-}
+////////////////////////////////////////////////////////////////////////////////////////
+// Errors
+////////////////////////////////////////////////////////////////////////////////////////
 
 /// An error related to the parsing of an alignment section.
 #[derive(Debug)]
@@ -92,6 +86,20 @@ impl std::error::Error for Error {}
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Sections
+////////////////////////////////////////////////////////////////////////////////////////
+
+/// The state of the iterator.
+#[derive(Debug)]
+enum State {
+    /// The reader is in-between alignment sections.
+    InBetweenSections,
+
+    /// The reader is in the middle of an alignment section.
+    ReadingSection,
+}
+
 /// An iterator struct the traverses the alignment sections while keeping
 /// track of the current state of the reader.
 #[derive(Debug)]
@@ -123,7 +131,7 @@ where
     }
 }
 
-impl<'a, T> Iterator for Sections<'a, T>
+impl<T> Iterator for Sections<'_, T>
 where
     T: BufRead,
 {
@@ -131,11 +139,12 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut builder: Option<Builder> = None;
+        let mut buffer = String::new();
 
         loop {
             // (1) Reads the current line and returns an error if a parsing
             // error occurs within the reader.
-            let line = match self.reader.read_line() {
+            let line = match self.reader.read_line(&mut buffer) {
                 Ok(l) => l,
                 Err(err) => return Some(Err(Error::Parse(ParseError::Reader(err)))),
             };
@@ -243,7 +252,7 @@ fn get_state(last: &State, line: &Line, line_no: usize) -> Result<State> {
             // We found alignment data in a section. We need to examine the
             // alignment data record that was parsed to determine if the record
             // is terminating for the section or not.
-            match record.record_type() {
+            match record.kind() {
                 Kind::NonTerminating => Ok(State::ReadingSection),
                 Kind::Terminating => Ok(State::InBetweenSections),
             }
