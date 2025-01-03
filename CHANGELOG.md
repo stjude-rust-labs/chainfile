@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Unreleased
 
+## 0.3.0 - 01-03-2025
+
+### Added
+
+- Added a new `bin/kitchen_sink.rs` that compares the performance of `chainfile`
+  with `CrossMap` (https://crossmap.sourceforge.net).
+
 ### Revise
 
 - The inner data structures were replaced with facilities provided by the

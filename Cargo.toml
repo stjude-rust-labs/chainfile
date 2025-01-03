@@ -1,7 +1,7 @@
 [package]
 name = "chainfile"
 authors = ["St. Jude Rust Labs"]
-version = "0.2.1"
+version = "0.3.0"
 description = "A crate for working with genomics chain files."
 license = "Apache-2.0/MIT"
 homepage = "https://github.com/stjude-rust-labs/chainfile"
