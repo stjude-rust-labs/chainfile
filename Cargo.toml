@@ -47,5 +47,5 @@ binaries = [
 ]
 
 [[bin]]
-name = "kitchen_sink"
+name = "compare-crossmap"
 required-features = ["binaries"]

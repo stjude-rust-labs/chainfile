@@ -1,0 +1,26 @@
+name: Compare
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  crossmap:
+    runs-on: ubuntu-latest 
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: reference
+          key: ${{ runner.os }}-reference
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - name: Install CrossMap
+        run: pip install CrossMap
+      - run: |
+          cargo run --release --features=binaries --bin=compare-crossmap -- \
+            -d $PWD \
+            -vvv \
+            hg19ToHg38
