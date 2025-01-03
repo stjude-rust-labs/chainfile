@@ -7,6 +7,9 @@
     <a href="https://github.com/stjude-rust-labs/chainfile/actions/workflows/CI.yml" target="_blank">
       <img alt="CI: Status" src="https://github.com/stjude-rust-labs/chainfile/actions/workflows/CI.yml/badge.svg" />
     </a>
+    <a href="https://github.com/stjude-rust-labs/chainfile/actions/workflows/comparison.yml" target="_blank">
+      <img alt="Comparison: Status" src="https://github.com/stjude-rust-labs/chainfile/actions/workflows/comparison.yml/badge.svg" />
+    </a>
     <a href="https://crates.io/crates/chainfile" target="_blank">
       <img alt="crates.io version" src="https://img.shields.io/crates/v/chainfile">
     </a>

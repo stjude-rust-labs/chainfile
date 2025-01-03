@@ -2,7 +2,7 @@
 //! liftover comparably to other liftover utilities.
 //!
 //! ```shell
-//! cargo run --release --bin=kitchen_sink --features=binaries hg19ToHg38
+//! cargo run --release --bin=compare-crossmap --features=binaries hg19ToHg38
 //! ```
 //!
 //! It achieves this by carrying out the following:
@@ -90,11 +90,6 @@ impl BedEntry {
 }
 
 fn write_bed_file(path: &Path, positions: impl IntoIterator<Item = BedEntry>) -> Result<()> {
-    assert!(
-        !path.exists(),
-        "the bed file _must not_ exist before writing"
-    );
-
     let mut file = File::create(path).context("creating BED file")?;
 
     for position in positions {
@@ -142,24 +137,24 @@ impl std::fmt::Display for LiftoverResult {
 // CrossMap execution
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// A struct for working with `crossmap`.
+/// A struct for working with `CrossMap`.
 struct CrossMap;
 
 impl CrossMap {
-    /// Ensures the `crossmap` is installed.
+    /// Ensures the `CrossMap` is installed.
     fn ensure_installed() -> Result<()> {
-        Command::new("crossmap")
+        Command::new("CrossMap")
             .arg("--version")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .status()
-            .context("retrieving `crossmap`'s version")
+            .context("retrieving `CrossMap`'s version")
             .map(|_| ())
     }
 
     /// Runs `crossmap bed` on a chain file and bed file.
     fn run_bed(chain_file: &Path, bed_file: &Path) -> Result<HashMap<BedEntry, LiftoverResult>> {
-        let process = Command::new("crossmap")
+        let process = Command::new("CrossMap")
             .arg("bed")
             .arg(chain_file)
             .arg(bed_file)
@@ -171,17 +166,17 @@ impl CrossMap {
 
         let output = process
             .wait_with_output()
-            .context("running `crossmap bed`")?;
+            .context("running `CrossMap bed`")?;
 
         if !output.status.success() {
-            bail!("the `crossmap bed` command returned a non-zero exit code");
+            bail!("the `CrossMap bed` command returned a non-zero exit code");
         }
 
         if !output.stderr.is_empty() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             for line in stderr.lines() {
                 if !line.contains("[INFO]") {
-                    panic!("`crossmap` returned something on stderr: {stderr}");
+                    panic!("`CrossMap` returned something on stderr: {stderr}");
                 }
             }
         }
@@ -193,7 +188,7 @@ impl CrossMap {
             let parts = line.split("\t").collect::<Vec<_>>();
             assert!(
                 parts.len() > 3,
-                "should always have at least four parts of a `crossmap` result line; found \
+                "should always have at least four parts of a `CrossMap` result line; found \
                  `{line}`"
             );
 
@@ -221,7 +216,7 @@ impl CrossMap {
 
                     LiftoverResult::Mapped(to)
                 }
-                _ => unreachable!("cannot parse `crossmap` result: `{line}`"),
+                _ => unreachable!("cannot parse `CrossMap` result: `{line}`"),
             };
 
             results.insert(from, to);
@@ -312,8 +307,8 @@ impl WorkDirectory {
     fn new(directory: PathBuf) -> Result<Self> {
         let work_dir = Self(directory);
 
-        std::fs::create_dir_all(work_dir.as_path()).context("creating the working directory")?;
-        std::fs::create_dir(work_dir.reference_dir()).context("creating reference directory")?;
+        std::fs::create_dir_all(work_dir.reference_dir())
+            .context("creating reference directory")?;
 
         Ok(work_dir)
     }
@@ -333,7 +328,7 @@ impl WorkDirectory {
         self.0.join("reference")
     }
 
-    /// The input positions bed file to `crossmap`.
+    /// The input positions bed file to `CrossMap`.
     fn input_bed_file(&self) -> PathBuf {
         self.0.join("input.bed")
     }
@@ -347,6 +342,13 @@ impl WorkDirectory {
 
         let filename = format!("{}.over.chain.gz", name.as_ref());
         let filepath = self.reference_dir().join(&filename);
+
+        if filepath.exists() {
+            info!("file path already exists: {}!", filepath.display());
+            info!("assuming this file is correct and eliding downloading");
+            return Ok(filepath);
+        }
+
         let url = format!("{CHAINFILE_URL_PREFIX}/{filename}");
 
         info!("chain file: dowloading {url}");
@@ -389,10 +391,10 @@ impl Deref for WorkDirectory {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// Comparsion between `chainfile` and `crossmap`
+// Comparsion between `chainfile` and`CrossMap`
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// A comparison of liftover results between `chainfile` and `crossmap`.
+/// A comparison of liftover results between `chainfile` and `CrossMap`.
 #[derive(Clone, Debug)]
 struct Comparison {
     /// The original position.
@@ -401,7 +403,7 @@ struct Comparison {
     /// The lifted position from `chainfile`.
     chainfile: LiftoverResult,
 
-    /// The lifted position from `crossmap`.
+    /// The lifted position from `CrossMap`.
     crossmap: LiftoverResult,
 }
 
@@ -440,27 +442,27 @@ impl Comparison {
 /// Throws the proverbial kitchen sink at `chainfile`.
 #[derive(Parser)]
 struct Args {
-    /// If desired, a permanent directory within which to do the work. This is
-    /// generally for debugging only.
-    #[arg(short, long)]
-    directory: Option<PathBuf>,
-
     /// The name of the chain file to compare (e.g., `hg19ToHg38`—don't include
     /// the `.over.chain.gz`).
     chain: String,
-
-    /// The number of positions to generate.
-    #[arg(short, default_value_t = 1_000_000)]
-    n: usize,
 
     /// Whether or not to only look at the so-called "canonical" contigs
     /// (chr1-22, chrX, chrY, and chrM).
     #[arg(short, long, default_value_t = false)]
     canonical_chromosomes_only: bool,
 
+    /// If desired, a permanent directory within which to do the work. This is
+    /// generally for debugging only.
+    #[arg(short, long)]
+    directory: Option<PathBuf>,
+
     /// If desired, the number of mismatches to explore.
     #[arg(short, long)]
     explore_mismatches: Option<usize>,
+
+    /// The number of positions to generate.
+    #[arg(short, default_value_t = 1_000_000)]
+    n: usize,
 
     #[command(flatten)]
     verbose: Verbosity,
@@ -475,8 +477,8 @@ fn throw(args: &Args) -> Result<()> {
 
     info!("working directory: {}", work_dir.display());
 
-    info!("crossmap: ensuring `crossmap` is installed");
-    CrossMap::ensure_installed().context("ensuring `crossmap` is installed")?;
+    info!("crossmap: ensuring `CrossMap` is installed");
+    CrossMap::ensure_installed().context("ensuring `CrossMap` is installed")?;
 
     let chain_file_path = work_dir
         .download_chain_file(&args.chain)
@@ -510,7 +512,7 @@ fn throw(args: &Args) -> Result<()> {
 
     info!("crossmap: running liftover");
     for (from, crossmap_result) in CrossMap::run_bed(&chain_file_path, &work_dir.input_bed_file())
-        .context("getting the `crossmap` mappings")?
+        .context("getting the `CrossMap` mappings")?
     {
         let start =
             Coordinate::<Interbase>::new(from.contig.as_str(), Strand::Positive, from.start);
@@ -570,7 +572,7 @@ fn throw(args: &Args) -> Result<()> {
     let matched_percent = (n_matches as f64 * 100.0) / total_comparisons as f64;
 
     println!(
-        "`chainfile` and `crossmap` matched in {matched_percent:.2}% of cases (n = {})",
+        "`chainfile` and `CrossMap` matched in {matched_percent:.2}% of cases (n = {})",
         total_comparisons
     );
 
@@ -679,6 +681,10 @@ fn throw(args: &Args) -> Result<()> {
                 warn!("");
             }
         }
+    }
+
+    if matched_percent != 100.0 {
+        std::process::exit(1);
     }
 
     Ok(())
