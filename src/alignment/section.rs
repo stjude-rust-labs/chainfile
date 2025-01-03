@@ -2,8 +2,10 @@
 
 use nonempty::NonEmpty;
 
-use crate::liftover::StepThrough;
+use crate::alignment::section::header::Sequence;
+use crate::liftover::StepThroughWithData;
 use crate::liftover::stepthrough;
+use crate::liftover::stepthrough::StepThrough;
 
 mod builder;
 pub mod data;
@@ -110,8 +112,8 @@ impl Section {
     ///
     /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
     /// use omics::coordinate::Strand;
-    /// use omics::coordinate::interval::zero::Interval;
-    /// use omics::coordinate::position::zero::Position;
+    /// use omics::coordinate::interval::interbase::Interval;
+    /// use omics::coordinate::position::interbase::Position;
     ///
     /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
     /// let cursor = io::Cursor::new(data);
@@ -130,7 +132,7 @@ impl Section {
     /// let result = stepthrough.pop_front().unwrap()?;
     /// let expected = ContiguousIntervalPair::try_new(
     ///     "seq0:+:0-3".parse::<Interval>()?,
-    ///     "seq0:-:4-1".parse::<Interval>()?,
+    ///     "seq0:-:5-2".parse::<Interval>()?,
     /// )?;
     /// assert_eq!(result, expected);
     ///
@@ -138,19 +140,87 @@ impl Section {
     /// let result = stepthrough.pop_front().unwrap()?;
     /// let expected = ContiguousIntervalPair::try_new(
     ///     "seq0:+:3-4".parse::<Interval>()?,
-    ///     "seq0:-:0-[".parse::<Interval>()?,
+    ///     "seq0:-:1-0".parse::<Interval>()?,
     /// )?;
     /// assert_eq!(result, expected);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn stepthrough(&self) -> Result<StepThrough<'_>, stepthrough::Error> {
+    pub fn stepthrough(&self) -> Result<StepThrough, stepthrough::Error> {
         StepThrough::new(self)
+    }
+
+    /// Gets a liftover [`StepThrough`] for this alignment [`Section`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::collections::VecDeque;
+    /// use std::io::BufRead;
+    /// use std::io::{self};
+    ///
+    /// use chainfile::alignment::section::data::record::Kind;
+    /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::Strand;
+    /// use omics::coordinate::interval::interbase::Interval;
+    /// use omics::coordinate::position::interbase::Position;
+    ///
+    /// let data = b"chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1\n3\t0\t1\n1";
+    /// let cursor = io::Cursor::new(data);
+    /// let mut reader = chainfile::Reader::new(cursor);
+    ///
+    /// let mut sections = reader.sections().collect::<Vec<_>>();
+    /// assert_eq!(sections.len(), 1);
+    ///
+    /// // SAFETY: we just checked that the length was one.
+    /// let section = sections.pop().unwrap()?;
+    ///
+    /// let mut stepthrough = section.stepthrough_with_data()?.collect::<VecDeque<_>>();
+    /// assert_eq!(stepthrough.len(), 2);
+    ///
+    /// // SAFETY: we just checked that the length was two, so this first pop will succeed.
+    /// let (result, record) = stepthrough.pop_front().unwrap()?;
+    /// let expected = ContiguousIntervalPair::try_new(
+    ///     "seq0:+:0-3".parse::<Interval>()?,
+    ///     "seq0:-:5-2".parse::<Interval>()?,
+    /// )?;
+    /// assert_eq!(result, expected);
+    /// assert_eq!(record.size(), 3);
+    /// assert_eq!(record.dt(), Some(0));
+    /// assert_eq!(record.dq(), Some(1));
+    /// assert_eq!(record.kind(), Kind::NonTerminating);
+    ///
+    /// // SAFETY: we just checked that the length was two, so this second pop will succeed.
+    /// let (result, record) = stepthrough.pop_front().unwrap()?;
+    /// let expected = ContiguousIntervalPair::try_new(
+    ///     "seq0:+:3-4".parse::<Interval>()?,
+    ///     "seq0:-:1-0".parse::<Interval>()?,
+    /// )?;
+    /// assert_eq!(result, expected);
+    /// assert_eq!(record.size(), 1);
+    /// assert_eq!(record.dt(), None);
+    /// assert_eq!(record.dq(), None);
+    /// assert_eq!(record.kind(), Kind::Terminating);
+    ///
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn stepthrough_with_data(&self) -> Result<StepThroughWithData, stepthrough::Error> {
+        StepThroughWithData::new(self)
+    }
+
+    /// Gets the reference sequence.
+    pub fn reference_sequence(&self) -> &Sequence {
+        self.header.reference_sequence()
+    }
+
+    /// Gets the query sequence.
+    pub fn query_sequence(&self) -> &Sequence {
+        self.header.query_sequence()
     }
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::io;
 
     use crate::Reader;

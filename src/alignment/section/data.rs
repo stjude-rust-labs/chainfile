@@ -3,6 +3,8 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use omics::coordinate::position::Number;
+
 use crate::alignment::section::data::record::Kind;
 
 pub mod record;
@@ -15,6 +17,10 @@ pub const NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING: usize = 3;
 
 /// The number of expected fields in a terminating alignment data record.
 pub const NUM_ALIGNMENT_DATA_FIELDS_TERMINATING: usize = 1;
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Errors
+////////////////////////////////////////////////////////////////////////////////////////
 
 /// An error related to the parsing of an alignment data record.
 #[derive(Debug)]
@@ -98,9 +104,25 @@ impl std::error::Error for Error {}
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;
 
+////////////////////////////////////////////////////////////////////////////////////////
+// Record
+////////////////////////////////////////////////////////////////////////////////////////
+
 /// An alignment data record within a chain file.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Record(usize, Option<usize>, Option<usize>, Kind);
+pub struct Record {
+    /// The size of the record.
+    size: Number,
+
+    /// The following target offset.
+    dt: Option<Number>,
+
+    /// The following query offset.
+    dq: Option<Number>,
+
+    /// The kind of record.
+    kind: Kind,
+}
 
 impl Record {
     /// Attempts to create a new [`Record`].
@@ -114,19 +136,19 @@ impl Record {
     /// let record = Record::try_new(10, Some(0), Some(1), Kind::NonTerminating)?;
     ///
     /// assert_eq!(record.size(), 10);
-    /// assert_eq!(record.dt(), &Some(0));
-    /// assert_eq!(record.dq(), &Some(1));
-    /// assert_eq!(record.record_type(), &Kind::NonTerminating);
+    /// assert_eq!(record.dt(), Some(0));
+    /// assert_eq!(record.dq(), Some(1));
+    /// assert_eq!(record.kind(), Kind::NonTerminating);
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn try_new(
-        size: usize,
-        dt: Option<usize>,
-        dq: Option<usize>,
-        record_type: Kind,
+        size: Number,
+        dt: Option<Number>,
+        dq: Option<Number>,
+        kind: Kind,
     ) -> Result<Self> {
-        match record_type {
+        match kind {
             Kind::NonTerminating => {
                 if dt.is_none() {
                     return Err(Error::InvalidNonTerminatingDt);
@@ -147,7 +169,7 @@ impl Record {
             }
         }
 
-        Ok(Record(size, dt, dq, record_type))
+        Ok(Record { size, dt, dq, kind })
     }
 
     /// Retuns the size of the ungapped alignment.
@@ -159,10 +181,11 @@ impl Record {
     ///
     /// let alignment: data::Record = "9\t1\t0".parse()?;
     /// assert_eq!(alignment.size(), 9);
+    ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn size(&self) -> usize {
-        self.0
+    pub fn size(&self) -> Number {
+        self.size
     }
 
     /// Returns the difference between this block and the next block for the
@@ -174,11 +197,12 @@ impl Record {
     /// use chainfile::alignment::section::data;
     ///
     /// let alignment: data::Record = "9\t1\t0".parse()?;
-    /// assert_eq!(*alignment.dt(), Some(1));
+    /// assert_eq!(alignment.dt(), Some(1));
+    ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn dt(&self) -> &Option<usize> {
-        &self.1
+    pub fn dt(&self) -> Option<Number> {
+        self.dt
     }
 
     /// Returns the difference between this block and the next block for the
@@ -190,11 +214,12 @@ impl Record {
     /// use chainfile::alignment::section::data;
     ///
     /// let alignment: data::Record = "9\t1\t0".parse()?;
-    /// assert_eq!(*alignment.dq(), Some(0));
+    /// assert_eq!(alignment.dq(), Some(0));
+    ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn dq(&self) -> &Option<usize> {
-        &self.2
+    pub fn dq(&self) -> Option<Number> {
+        self.dq
     }
 
     /// Returns the record type.
@@ -206,11 +231,12 @@ impl Record {
     /// use chainfile::alignment::section::data::record::Kind;
     ///
     /// let alignment: data::Record = "9\t1\t0".parse()?;
-    /// assert_eq!(*alignment.record_type(), Kind::NonTerminating);
+    /// assert_eq!(alignment.kind(), Kind::NonTerminating);
+    ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn record_type(&self) -> &Kind {
-        &self.3
+    pub fn kind(&self) -> Kind {
+        self.kind
     }
 }
 
@@ -219,7 +245,8 @@ impl FromStr for Record {
 
     fn from_str(s: &str) -> Result<Self> {
         let parts = s.split(ALIGNMENT_DATA_DELIMITER).collect::<Vec<_>>();
-        let record_type = match parts.len() {
+
+        let kind = match parts.len() {
             NUM_ALIGNMENT_DATA_FIELDS_TERMINATING => Kind::Terminating,
             NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING => Kind::NonTerminating,
             _ => {
@@ -232,7 +259,8 @@ impl FromStr for Record {
         let size = parts[0]
             .parse()
             .map_err(|err| Error::Parse(ParseError::InvalidSize(err)))?;
-        let (dt, dq) = match record_type {
+
+        let (dt, dq) = match kind {
             Kind::NonTerminating => {
                 let dt = parts[1]
                     .parse()
@@ -245,7 +273,7 @@ impl FromStr for Record {
             Kind::Terminating => (None, None),
         };
 
-        Record::try_new(size, dt, dq, record_type)
+        Record::try_new(size, dt, dq, kind)
     }
 }
 
@@ -253,18 +281,15 @@ impl std::fmt::Display for Record {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.size())?;
 
-        match self.record_type() {
-            Kind::NonTerminating => {
-                write!(
-                    f,
-                    "{}{}{}{}",
-                    ALIGNMENT_DATA_DELIMITER,
-                    self.dt().expect("non-terminating record must have a dt"),
-                    ALIGNMENT_DATA_DELIMITER,
-                    self.dq().expect("non-terminating record must have a dq"),
-                )?;
-            }
-            Kind::Terminating => {}
+        if self.kind() == Kind::NonTerminating {
+            write!(
+                f,
+                "{}{}{}{}",
+                ALIGNMENT_DATA_DELIMITER,
+                self.dt().expect("non-terminating record to have a `dt`"),
+                ALIGNMENT_DATA_DELIMITER,
+                self.dq().expect("non-terminating record to have a `dq`"),
+            )?;
         }
 
         Ok(())
@@ -272,147 +297,131 @@ impl std::fmt::Display for Record {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
 
     #[test]
-    fn test_nonterminating_alignment_data() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let record = "9\t1\t0".parse::<Record>()?;
+    fn nonterminating_alignment_data() {
+        let record = "9\t1\t0".parse::<Record>().unwrap();
 
         assert_eq!(record.size(), 9);
-        assert_eq!(*record.dt(), Some(1));
-        assert_eq!(*record.dq(), Some(0));
-        assert_eq!(*record.record_type(), Kind::NonTerminating);
-
-        Ok(())
+        assert_eq!(record.dt(), Some(1));
+        assert_eq!(record.dq(), Some(0));
+        assert_eq!(record.kind(), Kind::NonTerminating);
     }
 
     #[test]
-    fn test_terminating_alignment_data() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let record = "9".parse::<Record>()?;
+    fn terminating_alignment_data() {
+        let record = "9".parse::<Record>().unwrap();
 
         assert_eq!(record.size(), 9);
-        assert_eq!(*record.dt(), None);
-        assert_eq!(*record.dq(), None);
-        assert_eq!(*record.record_type(), Kind::Terminating);
-
-        Ok(())
+        assert_eq!(record.dt(), None);
+        assert_eq!(record.dq(), None);
+        assert_eq!(record.kind(), Kind::Terminating);
     }
 
     #[test]
-    fn test_invalid_number_of_fields() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_number_of_fields() {
         let err = "9\t0".parse::<Record>().unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::Parse(ParseError::IncorrectNumberOfFields(2))
+        ));
 
         assert_eq!(
             err.to_string(),
             "parse error: invalid number of fields in alignment data: expected 3 \
              (non-terminating) or 1 (terminating) fields, found 2 fields"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_size() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_size() {
         let err = "?\t0\t1".parse::<Record>().unwrap_err();
 
+        assert!(matches!(err, Error::Parse(ParseError::InvalidSize(_))));
         assert_eq!(
             err.to_string(),
             "parse error: invalid size: invalid digit found in string"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_dt() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_dt() {
         let err = "9\t?\t1".parse::<Record>().unwrap_err();
 
+        assert!(matches!(err, Error::Parse(ParseError::InvalidDt(_))));
         assert_eq!(
             err.to_string(),
             "parse error: invalid dt: invalid digit found in string"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_dq() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_dq() {
         let err = "9\t0\t?".parse::<Record>().unwrap_err();
 
+        assert!(matches!(err, Error::Parse(ParseError::InvalidDq(_))));
         assert_eq!(
             err.to_string(),
             "parse error: invalid dq: invalid digit found in string"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_nonterminating_dt() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_nonterminating_dt() {
         let err = Record::try_new(9, None, Some(1), Kind::NonTerminating).unwrap_err();
 
+        assert!(matches!(err, Error::InvalidNonTerminatingDt));
         assert_eq!(
             err.to_string(),
             "expected value for dt in non-terminating alignment data line, found no value"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_nonterminating_dq() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_nonterminating_dq() {
         let err = Record::try_new(9, Some(0), None, Kind::NonTerminating).unwrap_err();
 
+        assert!(matches!(err, Error::InvalidNonTerminatingDq));
         assert_eq!(
             err.to_string(),
             "expected value for dq in non-terminating alignment data line, found no value"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_terminating_dt() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_terminating_dt() {
         let err = Record::try_new(9, Some(0), None, Kind::Terminating).unwrap_err();
 
+        assert!(matches!(err, Error::InvalidTerminatingDt));
         assert_eq!(
             err.to_string(),
             "expected no value for dt in terminating alignment data line, found value"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_terminating_dq() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    fn invalid_terminating_dq() {
         let err = Record::try_new(9, None, Some(1), Kind::Terminating).unwrap_err();
 
+        assert!(matches!(err, Error::InvalidTerminatingDq));
         assert_eq!(
             err.to_string(),
             "expected no value for dq in terminating alignment data line, found value"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_nonterminating_alignment_data_display()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let alignment = Record::try_new(9, Some(1), Some(0), Kind::NonTerminating)?;
-
+    fn nonterminating_alignment_data_display() {
+        let alignment = Record::try_new(9, Some(1), Some(0), Kind::NonTerminating).unwrap();
         assert_eq!(alignment.to_string(), "9\t1\t0");
-
-        Ok(())
     }
 
     #[test]
-    fn test_terminating_alignment_data_display()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let alignment = Record::try_new(9, None, None, Kind::Terminating)?;
-
+    fn terminating_alignment_data_display() {
+        let alignment = Record::try_new(9, None, None, Kind::Terminating).unwrap();
         assert_eq!(alignment.to_string(), "9");
-
-        Ok(())
     }
 }

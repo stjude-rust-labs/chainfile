@@ -5,17 +5,18 @@ use std::io::BufRead;
 
 use omics::coordinate::Contig;
 use omics::coordinate::Strand;
-use omics::coordinate::position::Value;
+use omics::coordinate::position::Number;
 use rust_lapper as lapper;
 
 use crate::alignment;
 use crate::liftover;
 use crate::liftover::Machine;
+use crate::liftover::machine::ChromosomeDictionary;
 use crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
 use crate::reader;
 
 /// The inner value of the liftover lookup data structure.
-type Iv = lapper::Interval<usize, ContiguousIntervalPair>;
+type Iv = lapper::Interval<Number, ContiguousIntervalPair>;
 
 /// An error related to building a [`Machine`].
 #[derive(Debug)]
@@ -65,43 +66,36 @@ impl Builder {
     {
         let mut hm = HashMap::<Contig, Vec<Iv>>::default();
 
-        for section_result in reader.sections() {
-            let section = section_result.map_err(Error::InvalidSections)?;
+        let mut reference_chromosomes = ChromosomeDictionaryBuilder::default();
+        let mut query_chromosomes = ChromosomeDictionaryBuilder::default();
+
+        for result in reader.sections() {
+            let section = result.map_err(Error::InvalidSections)?;
+
+            let header = section.header();
+            query_chromosomes.update(
+                header.query_sequence().chromosome_name().to_string(),
+                header.query_sequence().chromosome_size(),
+            );
+            reference_chromosomes.update(
+                header.reference_sequence().chromosome_name().to_string(),
+                header.reference_sequence().chromosome_size(),
+            );
+
             for pair_result in section.stepthrough().map_err(Error::StepthroughError)? {
                 let pair = pair_result.map_err(Error::StepthroughError)?;
                 let entry = hm.entry(pair.reference().contig().clone()).or_default();
 
-                let (start, end) = match pair.reference().strand() {
+                let (start, stop) = match pair.reference().strand() {
                     Strand::Positive => {
-                        let start = match pair.reference().start().position().inner() {
-                            Value::Usize(a) => *a,
-                            Value::LowerBound => {
-                                unreachable!("lower bound not allowed on positive strand")
-                            }
-                        };
-
-                        let end = match pair.reference().end().position().inner() {
-                            Value::Usize(b) => *b,
-                            Value::LowerBound => {
-                                unreachable!("lower bound not allowed on positive strand")
-                            }
-                        };
+                        let start = pair.reference().start().position().get();
+                        let end = pair.reference().end().position().get();
 
                         (start, end)
                     }
                     Strand::Negative => {
-                        let start = match pair.reference().end().position().inner() {
-                            Value::Usize(a) => a + 1,
-                            Value::LowerBound => 0,
-                        };
-
-                        let end = match pair.reference().start().position().inner() {
-                            Value::Usize(b) => b + 1,
-                            Value::LowerBound => unreachable!(
-                                "lower bound will never be the start of a negative-stranded \
-                                 interval"
-                            ),
-                        };
+                        let start = pair.reference().end().position().get();
+                        let end = pair.reference().start().position().get();
 
                         (start, end)
                     }
@@ -109,24 +103,58 @@ impl Builder {
 
                 entry.push(lapper::Interval {
                     start,
-                    stop: end,
+                    stop,
                     val: pair,
                 })
             }
         }
 
-        let mut inner = HashMap::<Contig, lapper::Lapper<usize, ContiguousIntervalPair>>::new();
+        let mut inner = HashMap::<Contig, lapper::Lapper<Number, ContiguousIntervalPair>>::new();
 
         for (k, v) in hm.into_iter() {
             inner.insert(k, lapper::Lapper::new(v));
         }
 
-        Ok(Machine { inner })
+        let reference_chromosomes = reference_chromosomes.build();
+        let query_chromosomes = query_chromosomes.build();
+
+        Ok(Machine {
+            inner,
+            reference_chromosomes,
+            query_chromosomes,
+        })
     }
 }
 
 impl Default for Builder {
     fn default() -> Self {
         Self
+    }
+}
+
+/// A builder for the size of the contigs in either the reference or query
+/// sequences.
+#[derive(Default)]
+struct ChromosomeDictionaryBuilder(ChromosomeDictionary);
+
+impl ChromosomeDictionaryBuilder {
+    /// Updates the contig builder with the current start and end.
+    fn update(&mut self, contig: String, size: Number) {
+        match self.0.get(&contig) {
+            Some(existing) => {
+                assert!(
+                    *existing == size,
+                    "the current size conflicts with the previously set size"
+                );
+            }
+            None => {
+                self.0.insert(contig, size);
+            }
+        }
+    }
+
+    /// Consumes `self` and returns the built [`ChromosomeDictionary`].
+    fn build(self) -> ChromosomeDictionary {
+        self.0
     }
 }

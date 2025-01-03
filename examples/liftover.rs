@@ -5,7 +5,7 @@ use std::io::BufReader;
 use chain::liftover;
 use chainfile as chain;
 use flate2::read::GzDecoder;
-use omics::coordinate::interval::zero::Interval;
+use omics::coordinate::interval::interbase::Interval;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let interval = env::args().nth(1).expect("missing interval");
@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(chain::Reader::new)?;
 
     let machine = liftover::machine::builder::Builder.try_build_from(reader)?;
-    let results = machine.liftover(&interval);
+    let results = machine.liftover(interval);
 
     match results {
         Some(results) => {

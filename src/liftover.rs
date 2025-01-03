@@ -1,7 +1,7 @@
-//! Utilities for lifting over from a reference genome to a query genome.
+//! Facilities for lifting over coordinates.
 
 pub mod machine;
 pub mod stepthrough;
 
 pub use machine::Machine;
-pub use stepthrough::StepThrough;
+pub use stepthrough::StepThroughWithData;
