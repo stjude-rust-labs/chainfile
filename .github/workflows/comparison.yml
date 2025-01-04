@@ -19,8 +19,5 @@ jobs:
         run: rustup update stable && rustup default stable
       - name: Install CrossMap
         run: pip install CrossMap
-      - run: |
-          cargo run --release --features=binaries --bin=compare-crossmap -- \
-            -d $PWD \
-            -vvv \
-            hg19ToHg38
+      - run: cargo run --release --features=binaries --bin=compare-crossmap -- -d $PWD -vvv hg19ToHg38
+      - run: cargo run --release --features=binaries --bin=compare-crossmap -- -d $PWD -vvv hg38ToHs1

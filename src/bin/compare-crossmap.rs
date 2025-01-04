@@ -22,6 +22,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
+use std::sync::LazyLock;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -38,6 +39,7 @@ use omics::coordinate::position::Number;
 use omics::coordinate::system::Interbase;
 use rand::Rng;
 use rand::rngs::ThreadRng;
+use regex::Regex;
 use tempdir::TempDir;
 use tracing::error;
 use tracing::info;
@@ -48,7 +50,97 @@ use weighted_rand::builder::NewBuilder;
 use weighted_rand::builder::WalkerTableBuilder;
 use weighted_rand::table::WalkerTable;
 
-const CHAINFILE_URL_PREFIX: &str = "https://hgdownload.cse.ucsc.edu/goldenPath/hg19/liftOver";
+const CHAINFILE_URL_PREFIX: &str = "https://hgdownload.soe.ucsc.edu/goldenPath";
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Chain names
+////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct ChainName {
+    /// The genome we're converting from.
+    ///
+    /// This genome name will always be lowercase as per UCSC conventions.
+    from: String,
+
+    /// The genome we're converting To.
+    ///
+    /// This genome name will always be sentence case as per UCSC conventions.
+    to: String,
+}
+
+static REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([a-z0-9_]+)To([A-Z][a-z0-9_]*)").unwrap());
+
+impl ChainName {
+    /// Attempts to create a new chain name.
+    ///
+    /// [`None`] is returned if the chain name is not valid.
+    pub fn try_new(value: impl AsRef<str>) -> Option<Self> {
+        let value = value.as_ref();
+        let groups = REGEX.captures(value)?;
+
+        let from = groups.get(1).unwrap().as_str().to_string();
+        let to = groups.get(2).unwrap().as_str().to_string();
+
+        Some(Self { from, to })
+    }
+
+    /// Gets the "from" genome name.
+    pub fn from(&self) -> &str {
+        &self.from
+    }
+
+    /// Gets the "to" genome name.
+    pub fn to(&self) -> &str {
+        &self.to
+    }
+
+    /// Gets the full chain name.
+    pub fn name(&self) -> String {
+        format!("{}To{}", self.from, self.to)
+    }
+
+    /// Gets the full file name for the chain.
+    pub fn file_name(&self) -> String {
+        format!("{}.over.chain.gz", self.name())
+    }
+
+    /// Gets the download url for the file.
+    pub fn download_url(&self) -> String {
+        format!(
+            "{}/{}/liftOver/{}",
+            CHAINFILE_URL_PREFIX,
+            self.from,
+            self.file_name()
+        )
+    }
+}
+
+#[cfg(test)]
+mod chain_name_tests {
+    use super::ChainName;
+
+    #[test]
+    fn valid() {
+        let name = ChainName::try_new("hg19ToHg38").unwrap();
+
+        assert_eq!(name.from(), "hg19");
+        assert_eq!(name.to(), "Hg38");
+        assert_eq!(name.name(), "hg19ToHg38");
+        assert_eq!(name.file_name(), "hg19ToHg38.over.chain.gz");
+        assert_eq!(
+            name.download_url(),
+            "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz"
+        );
+    }
+
+    #[test]
+    fn invalid() {
+        assert!(ChainName::try_new("hg19Tohg38").is_none());
+        assert!(ChainName::try_new("hg19To").is_none());
+        assert!(ChainName::try_new("hg19").is_none());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Bed files
@@ -334,13 +426,13 @@ impl WorkDirectory {
     }
 
     /// Attempts to download a chain file.
-    fn download_chain_file(&self, name: impl AsRef<str>) -> Result<PathBuf> {
+    fn download_chain_file(&self, chain_name: &ChainName) -> Result<PathBuf> {
         assert!(
             self.reference_dir().is_dir(),
             "reference directory must exist before downloading chain file"
         );
 
-        let filename = format!("{}.over.chain.gz", name.as_ref());
+        let filename = chain_name.file_name();
         let filepath = self.reference_dir().join(&filename);
 
         if filepath.exists() {
@@ -349,7 +441,7 @@ impl WorkDirectory {
             return Ok(filepath);
         }
 
-        let url = format!("{CHAINFILE_URL_PREFIX}/{filename}");
+        let url = chain_name.download_url();
 
         info!("chain file: dowloading {url}");
 
@@ -469,6 +561,11 @@ struct Args {
 }
 
 fn throw(args: &Args) -> Result<()> {
+    let chain_name = match ChainName::try_new(args.chain.clone()) {
+        Some(name) => name,
+        None => bail!("invalid chain name: {}", args.chain),
+    };
+
     let work_dir = match &args.directory {
         Some(dir) => WorkDirectory::new(dir.clone()),
         None => WorkDirectory::new_temporary(),
@@ -481,8 +578,8 @@ fn throw(args: &Args) -> Result<()> {
     CrossMap::ensure_installed().context("ensuring `CrossMap` is installed")?;
 
     let chain_file_path = work_dir
-        .download_chain_file(&args.chain)
-        .with_context(|| format!("chain file: downloading {}", &args.chain))?;
+        .download_chain_file(&chain_name)
+        .with_context(|| format!("chain file: downloading {}", &chain_name.name()))?;
 
     let chain = File::open(&chain_file_path)
         .map(GzDecoder::new)

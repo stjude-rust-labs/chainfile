@@ -43,6 +43,14 @@ jobs:
         run: rustup update stable && rustup default stable
       - run: cargo test --all-features --examples
 
+  test-compare-crossmap:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - run: cargo test --features=binaries --bin=compare-crossmap
+
   docs:
     runs-on: ubuntu-22.04
     steps:
