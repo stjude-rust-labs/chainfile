@@ -8,7 +8,7 @@ homepage = "https://github.com/stjude-rust-labs/chainfile"
 repository = "https://github.com/stjude-rust-labs/chainfile"
 documentation = "https://docs.rs/chainfile"
 edition = "2021"
-rust-version = "1.80.0"
+rust-version = "1.82.0"
 
 [dependencies]
 omics = { version = "0.2.0", features = ["coordinate", "position-u64"] }
