@@ -80,12 +80,16 @@ following checks.
 ```bash
 # Run the project's tests.
 cargo test --all-features
+```
 
 # Ensure the project doesn't have any linting warnings.
-cargo clippy --all-features
+`cargo clippy --all-features`
 
 # Ensure the project passes `cargo fmt`.
-cargo fmt --check
+Suggest using `nightly` toolchain. If you use `stable`, then ignore any
+warnings mentioning "unstable features".
+```bash
+cargo +nightly fmt --check
 ```
 
 ## Minimum Supported Rust Version (MSRV)
