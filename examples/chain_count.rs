@@ -28,8 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!(
-        "Counted {} alignment sections and {} alignment data entries.",
-        sections, alignment_data_entries
+        "Counted {sections} alignment sections and {alignment_data_entries} alignment data entries."
     );
 
     Ok(())

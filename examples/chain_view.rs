@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .modify(Rows::new(1..), Alignment::left())
         .to_string();
 
-    println!("{}", table);
+    println!("{table}");
 
     Ok(())
 }

@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match results {
         Some(results) => {
             for result in results {
-                println!("{}", result);
+                println!("{result}");
             }
         }
         None => println!("Does not exist in new genome"),

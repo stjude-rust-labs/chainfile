@@ -43,13 +43,12 @@ impl std::fmt::Display for ParseError {
         match self {
             ParseError::IncorrectNumberOfFields(n) => write!(
                 f,
-                "invalid number of fields in alignment data: expected {} (non-terminating) or {} \
-                 (terminating) fields, found {} fields",
-                NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING, NUM_ALIGNMENT_DATA_FIELDS_TERMINATING, n
+                "invalid number of fields in alignment data: expected {NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING} (non-terminating) or {NUM_ALIGNMENT_DATA_FIELDS_TERMINATING} \
+                 (terminating) fields, found {n} fields"
             ),
-            ParseError::InvalidSize(err) => write!(f, "invalid size: {}", err),
-            ParseError::InvalidDt(err) => write!(f, "invalid dt: {}", err),
-            ParseError::InvalidDq(err) => write!(f, "invalid dq: {}", err),
+            ParseError::InvalidSize(err) => write!(f, "invalid size: {err}"),
+            ParseError::InvalidDt(err) => write!(f, "invalid dt: {err}"),
+            ParseError::InvalidDq(err) => write!(f, "invalid dq: {err}"),
         }
     }
 }

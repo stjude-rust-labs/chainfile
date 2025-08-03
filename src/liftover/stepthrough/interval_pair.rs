@@ -20,9 +20,8 @@ impl std::fmt::Display for Error {
         match self {
             Error::EntityCountsDontMatch(reference, query) => write!(
                 f,
-                "reference interval entity count ({}) doesn't match query interval entity count \
-                 ({})",
-                reference, query
+                "reference interval entity count ({reference}) doesn't match query interval entity count \
+                 ({query})"
             ),
             Error::Interval(err) => write!(f, "interval error: {err}"),
         }

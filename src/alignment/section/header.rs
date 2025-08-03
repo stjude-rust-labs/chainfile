@@ -51,26 +51,23 @@ impl std::fmt::Display for ParseError {
         match self {
             ParseError::IncorrectNumberOfFields(fields) => write!(
                 f,
-                "invalid number of fields in header: expected {} fields, found {} fields",
-                NUM_HEADER_FIELDS, fields
+                "invalid number of fields in header: expected {NUM_HEADER_FIELDS} fields, found {fields} fields"
             ),
             ParseError::InvalidPrefix(prefix) => {
                 write!(
                     f,
-                    "invalid prefix: expected \"{}\", found \"{}\"",
-                    HEADER_PREFIX, prefix
+                    "invalid prefix: expected \"{HEADER_PREFIX}\", found \"{prefix}\""
                 )
             }
-            ParseError::InvalidScore(err) => write!(f, "invalid score: {}", err),
+            ParseError::InvalidScore(err) => write!(f, "invalid score: {err}"),
             ParseError::InvalidReferenceSequence(err) => {
-                write!(f, "invalid reference sequence: {}", err)
+                write!(f, "invalid reference sequence: {err}")
             }
-            ParseError::InvalidQuerySequence(err) => write!(f, "invalid query sequence: {}", err),
-            ParseError::InvalidId(err) => write!(f, "invalid id: {}", err),
+            ParseError::InvalidQuerySequence(err) => write!(f, "invalid query sequence: {err}"),
+            ParseError::InvalidId(err) => write!(f, "invalid id: {err}"),
             ParseError::EndPositionExceedsSize(chrom, pos, size) => write!(
                 f,
-                "the end position ({}) exceeds the size of the chromosome `{}` ({})",
-                pos, chrom, size
+                "the end position ({pos}) exceeds the size of the chromosome `{chrom}` ({size})"
             ),
         }
     }

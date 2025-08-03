@@ -31,8 +31,8 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::InvalidSections(err) => write!(f, "invalid data section: {}", err),
-            Error::StepthroughError(err) => write!(f, "stepthrough error: {}", err),
+            Error::InvalidSections(err) => write!(f, "invalid data section: {err}"),
+            Error::StepthroughError(err) => write!(f, "stepthrough error: {err}"),
         }
     }
 }
