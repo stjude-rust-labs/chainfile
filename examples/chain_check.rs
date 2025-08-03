@@ -121,8 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(results) => results,
             None => {
                 println!(
-                    "INFO: region {} is not included in the query genome.",
-                    interval
+                    "INFO: region {interval} is not included in the query genome."
                 );
                 continue;
             }
@@ -166,40 +165,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let total_matched = (1.0 - (total_mismatches as f64 / total_positions as f64)) * 100.0;
-    println!("Total mismatches found: {}", total_mismatches);
-    println!("Total positions checked: {}", total_positions);
-    println!("Percentage match for all regions: {:.1}%", total_matched);
+    println!("Total mismatches found: {total_mismatches}");
+    println!("Total positions checked: {total_positions}");
+    println!("Percentage match for all regions: {total_matched:.1}%");
 
     println!();
 
     let positive_matched = (1.0 - (positive_mismatches as f64 / positive_positions as f64)) * 100.0;
     println!(
-        "> Positive strand mismatches found: {}",
-        positive_mismatches
+        "> Positive strand mismatches found: {positive_mismatches}"
     );
     println!(
-        "> Positive strand positions checked: {}",
-        positive_positions
+        "> Positive strand positions checked: {positive_positions}"
     );
     println!(
-        "> Percentage match for positive stranded query regions: {:.1}%",
-        positive_matched
+        "> Percentage match for positive stranded query regions: {positive_matched:.1}%"
     );
 
     println!();
 
     let negative_matched = (1.0 - (negative_mismatches as f64 / negative_positions as f64)) * 100.0;
     println!(
-        "> Negative strand mismatches found: {}",
-        negative_mismatches
+        "> Negative strand mismatches found: {negative_mismatches}"
     );
     println!(
-        "> Negative strand positions checked: {}",
-        negative_positions
+        "> Negative strand positions checked: {negative_positions}"
     );
     println!(
-        "> Percentage match for negative stranded regions: {:.1}%",
-        negative_matched
+        "> Percentage match for negative stranded regions: {negative_matched:.1}%"
     );
 
     Ok(())

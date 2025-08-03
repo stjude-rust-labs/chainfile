@@ -32,13 +32,12 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::InvalidHeaderRecord { inner, line } => {
-                write!(f, "invalid header record: {}\n\nline: `{}`", inner, line)
+                write!(f, "invalid header record: {inner}\n\nline: `{line}`")
             }
             Error::InvalidAlignmentDataRecord { inner, line } => {
                 write!(
                     f,
-                    "invalid alignment data record: {}\n\nline: `{}`",
-                    inner, line
+                    "invalid alignment data record: {inner}\n\nline: `{line}`"
                 )
             }
         }
@@ -100,8 +99,8 @@ impl std::fmt::Display for Line {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Line::Empty => write!(f, ""),
-            Line::Header(record) => write!(f, "{}", record),
-            Line::AlignmentData(record) => write!(f, "{}", record),
+            Line::Header(record) => write!(f, "{record}"),
+            Line::AlignmentData(record) => write!(f, "{record}"),
         }
     }
 }

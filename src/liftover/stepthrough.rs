@@ -45,13 +45,12 @@ impl std::fmt::Display for Error {
             Error::IntervalStepthroughOutOfBounds(name, coordinate, magnitude) => {
                 write!(
                     f,
-                    "interval stepthrough out of bounds: moving {} from {} by {}",
-                    name, coordinate, magnitude
+                    "interval stepthrough out of bounds: moving {name} from {coordinate} by {magnitude}"
                 )
             }
-            Error::Interval(err) => write!(f, "interval error: {}", err),
+            Error::Interval(err) => write!(f, "interval error: {err}"),
             Error::InvalidIntervalPair(err) => {
-                write!(f, "invalid interval pair: {}", err)
+                write!(f, "invalid interval pair: {err}")
             }
             Error::MisalignedDataSection => write!(
                 f,
