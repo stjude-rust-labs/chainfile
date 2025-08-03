@@ -51,7 +51,8 @@ impl std::fmt::Display for ParseError {
         match self {
             ParseError::IncorrectNumberOfFields(fields) => write!(
                 f,
-                "invalid number of fields in header: expected {NUM_HEADER_FIELDS} fields, found {fields} fields"
+                "invalid number of fields in header: expected {NUM_HEADER_FIELDS} fields, found \
+                 {fields} fields"
             ),
             ParseError::InvalidPrefix(prefix) => {
                 write!(

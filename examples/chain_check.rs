@@ -120,9 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let results = match machine.liftover(interval.clone()) {
             Some(results) => results,
             None => {
-                println!(
-                    "INFO: region {interval} is not included in the query genome."
-                );
+                println!("INFO: region {interval} is not included in the query genome.");
                 continue;
             }
         };
@@ -172,28 +170,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let positive_matched = (1.0 - (positive_mismatches as f64 / positive_positions as f64)) * 100.0;
-    println!(
-        "> Positive strand mismatches found: {positive_mismatches}"
-    );
-    println!(
-        "> Positive strand positions checked: {positive_positions}"
-    );
-    println!(
-        "> Percentage match for positive stranded query regions: {positive_matched:.1}%"
-    );
+    println!("> Positive strand mismatches found: {positive_mismatches}");
+    println!("> Positive strand positions checked: {positive_positions}");
+    println!("> Percentage match for positive stranded query regions: {positive_matched:.1}%");
 
     println!();
 
     let negative_matched = (1.0 - (negative_mismatches as f64 / negative_positions as f64)) * 100.0;
-    println!(
-        "> Negative strand mismatches found: {negative_mismatches}"
-    );
-    println!(
-        "> Negative strand positions checked: {negative_positions}"
-    );
-    println!(
-        "> Percentage match for negative stranded regions: {negative_matched:.1}%"
-    );
+    println!("> Negative strand mismatches found: {negative_mismatches}");
+    println!("> Negative strand positions checked: {negative_positions}");
+    println!("> Percentage match for negative stranded regions: {negative_matched:.1}%");
 
     Ok(())
 }

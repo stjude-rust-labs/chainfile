@@ -47,10 +47,9 @@ impl std::fmt::Display for ParseError {
             ParseError::BlankLineInSection(line_no) => {
                 write!(f, "found blank line in alignment section: line {line_no}")
             }
-            ParseError::DataBetweenSections(record) => write!(
-                f,
-                "found alignment data between sections: record: {record}"
-            ),
+            ParseError::DataBetweenSections(record) => {
+                write!(f, "found alignment data between sections: record: {record}")
+            }
             ParseError::HeaderInSection(record) => {
                 write!(f, "found header in alignment section: record: {record}")
             }
