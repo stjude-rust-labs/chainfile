@@ -45,7 +45,8 @@ impl std::fmt::Display for Error {
             Error::IntervalStepthroughOutOfBounds(name, coordinate, magnitude) => {
                 write!(
                     f,
-                    "interval stepthrough out of bounds: moving {name} from {coordinate} by {magnitude}"
+                    "interval stepthrough out of bounds: moving {name} from {coordinate} by \
+                     {magnitude}"
                 )
             }
             Error::Interval(err) => write!(f, "interval error: {err}"),

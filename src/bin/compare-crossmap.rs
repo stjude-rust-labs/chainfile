@@ -669,7 +669,8 @@ fn throw(args: &Args) -> Result<()> {
     let matched_percent = (n_matches as f64 * 100.0) / total_comparisons as f64;
 
     println!(
-        "`chainfile` and `CrossMap` matched in {matched_percent:.2}% of cases (n = {total_comparisons})"
+        "`chainfile` and `CrossMap` matched in {matched_percent:.2}% of cases (n = \
+         {total_comparisons})"
     );
 
     if args.explore_mismatches.is_some() && !mismatches.is_empty() {
