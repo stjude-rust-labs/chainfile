@@ -85,7 +85,7 @@ cargo test --all-features
 cargo clippy --all-features
 
 # Ensure the project passes `cargo fmt`.
-cargo fmt --check
+cargo +nightly fmt --check
 ```
 
 ## Minimum Supported Rust Version (MSRV)
