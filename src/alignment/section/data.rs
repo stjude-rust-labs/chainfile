@@ -214,33 +214,34 @@ impl FromStr for Record {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let parts = s.split(ALIGNMENT_DATA_DELIMITER).collect::<Vec<_>>();
+        let mut parts = s.splitn(4, ALIGNMENT_DATA_DELIMITER);
 
-        let kind = match parts.len() {
-            NUM_ALIGNMENT_DATA_FIELDS_TERMINATING => Kind::Terminating,
-            NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING => Kind::NonTerminating,
-            _ => {
-                return Err(Error::Parse(ParseError::IncorrectNumberOfFields(
-                    parts.len(),
-                )));
-            }
-        };
-
-        let size = parts[0]
+        let size_str = parts
+            .next()
+            .ok_or(Error::Parse(ParseError::IncorrectNumberOfFields(0)))?;
+        let size = size_str
             .parse()
             .map_err(|err| Error::Parse(ParseError::InvalidSize(err)))?;
 
-        let (dt, dq) = match kind {
-            Kind::NonTerminating => {
-                let dt = parts[1]
+        let (dt, dq, kind) = match parts.next() {
+            None => (None, None, Kind::Terminating),
+            Some(dt_str) => {
+                let dq_str = parts
+                    .next()
+                    .ok_or(Error::Parse(ParseError::IncorrectNumberOfFields(2)))?;
+
+                if parts.next().is_some() {
+                    return Err(Error::Parse(ParseError::IncorrectNumberOfFields(4)));
+                }
+
+                let dt = dt_str
                     .parse()
                     .map_err(|err| Error::Parse(ParseError::InvalidDt(err)))?;
-                let dq = parts[2]
+                let dq = dq_str
                     .parse()
                     .map_err(|err| Error::Parse(ParseError::InvalidDq(err)))?;
-                (Some(dt), Some(dq))
+                (Some(dt), Some(dq), Kind::NonTerminating)
             }
-            Kind::Terminating => (None, None),
         };
 
         Record::try_new(size, dt, dq, kind)

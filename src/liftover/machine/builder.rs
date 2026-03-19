@@ -1,6 +1,7 @@
 //! A builder for a [`Machine`].
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::io::BufRead;
 
 use omics::coordinate::Contig;
@@ -84,16 +85,18 @@ impl Builder {
 
             let header = section.header().clone();
 
-            match chains.get(&header.id()) {
-                Some(existing) if *existing != header => {
-                    return Err(Error::DuplicateChainId {
-                        id: header.id(),
-                        expected: existing.clone(),
-                        found: header,
-                    });
+            match chains.entry(header.id()) {
+                Entry::Occupied(e) => {
+                    if *e.get() != header {
+                        return Err(Error::DuplicateChainId {
+                            id: header.id(),
+                            expected: e.get().clone(),
+                            found: header,
+                        });
+                    }
                 }
-                _ => {
-                    chains.insert(header.id(), header.clone());
+                Entry::Vacant(e) => {
+                    e.insert(header.clone());
                 }
             }
 
@@ -106,9 +109,11 @@ impl Builder {
                 header.reference_sequence().chromosome_size(),
             );
 
+            let contig = Contig::new_unchecked(header.reference_sequence().chromosome_name());
+            let entry = hm.entry(contig).or_default();
+
             for pair_result in section.stepthrough().map_err(Error::StepthroughError)? {
                 let pair = pair_result.map_err(Error::StepthroughError)?;
-                let entry = hm.entry(pair.reference().contig().clone()).or_default();
 
                 let (start, stop) = match pair.reference().strand() {
                     Strand::Positive => {
@@ -129,7 +134,7 @@ impl Builder {
                     start,
                     stop,
                     val: AnnotatedPair {
-                        chain: header.clone(),
+                        chain_id: header.id(),
                         pair,
                     },
                 })
@@ -147,6 +152,7 @@ impl Builder {
 
         Ok(Machine {
             inner,
+            chains,
             reference_chromosomes,
             query_chromosomes,
         })

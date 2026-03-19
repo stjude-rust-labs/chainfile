@@ -26,6 +26,30 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
 - MSRV bumped to 1.85.0
   ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+- Bumped `omics` from `v0.2.0` to `v0.4.0`, adopting `Arc<str>`-backed
+  `Contig` for `O(1)` clones, the new `Contig` validation API, and
+  in-place coordinate move methods
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
+- Optimized liftover hot paths: stepthrough now uses in-place
+  `move_forward`/`move_backward` (cutting per-step clones from 8–12 to 4),
+  lapper results are filtered by strand before cloning, `Contig` creation is
+  hoisted out of the inner loop in the builder, and data record parsing uses
+  `splitn` instead of `split().collect()`
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
+- Refactored `AnnotatedPair` to store `chain_id: usize` instead of a full
+  `Header`, with a `HashMap<usize, Header>` side table on `Machine`
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
+- Liftover grouping replaced `HashMap` with a sort-and-linear-scan over a
+  flat `Vec`
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
+- `Machine::liftover()` now returns results in deterministic order: sorted by
+  score descending (best chain first) then chain ID ascending, with segments
+  sorted by reference start position
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
+- Added Criterion benchmarks for single-position liftover, interval liftover,
+  machine building, query-only throughput, and end-to-end throughput with
+  fixed-seed RNG for reproducibility
+  ([#10](https://github.com/stjude-rust-labs/chainfile/pull/10)).
 
 ## 0.3.0 - 01-03-2025
 

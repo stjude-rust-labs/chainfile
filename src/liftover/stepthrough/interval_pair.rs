@@ -162,6 +162,7 @@ impl ContiguousIntervalPair {
     ///
     /// ```
     /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::Contig;
     /// use omics::coordinate::Strand;
     /// use omics::coordinate::interbase::Coordinate;
     /// use omics::coordinate::interval::interbase::Interval;
@@ -172,8 +173,8 @@ impl ContiguousIntervalPair {
     /// let query = "seq1:+:1000-2000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let old = Coordinate::new("seq0", Strand::Positive, 50u64);
-    /// let new = Coordinate::new("seq1", Strand::Positive, 1050u64);
+    /// let old = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 50u64);
+    /// let new = Coordinate::new(Contig::new_unchecked("seq1"), Strand::Positive, 1050u64);
     /// let lifted = pair.liftover(&old).unwrap();
     ///
     /// assert_eq!(new, lifted);
@@ -184,8 +185,8 @@ impl ContiguousIntervalPair {
     /// let query = "seq1:-:2000-1000".parse::<Interval>()?;
     /// let pair = ContiguousIntervalPair::try_new(reference, query)?;
     ///
-    /// let old = Coordinate::new("seq0", Strand::Positive, 50u64);
-    /// let new = Coordinate::new("seq1", Strand::Negative, 1950u64);
+    /// let old = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 50u64);
+    /// let new = Coordinate::new(Contig::new_unchecked("seq1"), Strand::Negative, 1950u64);
     /// let lifted = pair.liftover(&old).unwrap();
     ///
     /// assert_eq!(new, lifted);
@@ -205,6 +206,7 @@ impl ContiguousIntervalPair {
     ///
     /// ```
     /// use chainfile::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
+    /// use omics::coordinate::Contig;
     /// use omics::coordinate::Strand;
     /// use omics::coordinate::interbase::Coordinate;
     /// use omics::coordinate::interval::interbase::Interval;
@@ -220,19 +222,19 @@ impl ContiguousIntervalPair {
     ///
     /// assert_eq!(
     ///     result.reference().start(),
-    ///     &Coordinate::new("seq0", Strand::Positive, 50u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 50u64)
     /// );
     /// assert_eq!(
     ///     result.reference().end(),
-    ///     &Coordinate::new("seq0", Strand::Positive, 51u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 51u64)
     /// );
     /// assert_eq!(
     ///     result.query().start(),
-    ///     &Coordinate::new("seq1", Strand::Positive, 1050u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq1"), Strand::Positive, 1050u64)
     /// );
     /// assert_eq!(
     ///     result.query().end(),
-    ///     &Coordinate::new("seq1", Strand::Positive, 1051u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq1"), Strand::Positive, 1051u64)
     /// );
     ///
     /// // Positive-stranded to negative-stranded
@@ -246,19 +248,19 @@ impl ContiguousIntervalPair {
     ///
     /// assert_eq!(
     ///     result.reference().start(),
-    ///     &Coordinate::new("seq0", Strand::Positive, 50u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 50u64)
     /// );
     /// assert_eq!(
     ///     result.reference().end(),
-    ///     &Coordinate::new("seq0", Strand::Positive, 51u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 51u64)
     /// );
     /// assert_eq!(
     ///     result.query().start(),
-    ///     &Coordinate::new("seq1", Strand::Negative, 1950u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq1"), Strand::Negative, 1950u64)
     /// );
     /// assert_eq!(
     ///     result.query().end(),
-    ///     &Coordinate::new("seq1", Strand::Negative, 1949u64)
+    ///     &Coordinate::new(Contig::new_unchecked("seq1"), Strand::Negative, 1949u64)
     /// );
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -289,12 +291,12 @@ impl ContiguousIntervalPair {
                 &reference
                     .end()
                     .clone()
-                    .move_backward(1)
+                    .into_move_backward(1)
                     .filter(|coord| self.reference().contains_coordinate(coord))
                     .unwrap(),
             )
             .unwrap()
-            .move_forward(1)
+            .into_move_forward(1)
             .unwrap();
 
         let query = Interval::try_new(query_start, query_end).unwrap();

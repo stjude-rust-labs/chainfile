@@ -18,11 +18,11 @@ pub use builder::Builder;
 /// A dictionary of chromosome names and their size.
 pub type ChromosomeDictionary = HashMap<String, Number>;
 
-/// A mapping segment annotated with the chain from which it originated.
+/// A mapping segment annotated with the chain ID from which it originated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AnnotatedPair {
-    /// The chain from which this segment originated.
-    chain: Header,
+    /// The chain ID from which this segment originated.
+    chain_id: usize,
 
     /// The mapping segment.
     pair: ContiguousIntervalPair,
@@ -70,6 +70,9 @@ pub struct Machine {
     /// in the query genome for each contig in the reference genome.
     inner: HashMap<Contig, lapper::Lapper<Number, AnnotatedPair>>,
 
+    /// A lookup table from chain ID to the chain header.
+    chains: HashMap<usize, Header>,
+
     /// The reference chromosome corpus.
     reference_chromosomes: ChromosomeDictionary,
 
@@ -95,56 +98,84 @@ impl Machine {
     /// Results are grouped by the chain from which each mapping segment
     /// originated. Each [`LiftoverResult`] contains one or more contiguous
     /// segments from a single chain, along with the chain's header.
+    ///
+    /// The returned `Vec<LiftoverResult>` is sorted by score descending
+    /// (best chain first), with chain ID ascending as a tiebreaker. Within
+    /// each result, `segments()` are sorted by reference interval start
+    /// position ascending, with end position as a tiebreaker.
     pub fn liftover(&self, interval: Interval) -> Option<Vec<LiftoverResult>> {
         let entry = self.inner.get(interval.contig())?;
 
         let (start, stop) = match interval.strand() {
-            Strand::Positive => {
-                let start = interval.start().position().get();
-                let end = interval.end().position().get();
-
-                (start, end)
-            }
-            Strand::Negative => {
-                let start = interval.end().position().get();
-                let end = interval.start().position().get();
-
-                (start, end)
-            }
+            Strand::Positive => (
+                interval.start().position().get(),
+                interval.end().position().get(),
+            ),
+            Strand::Negative => (
+                interval.end().position().get(),
+                interval.start().position().get(),
+            ),
         };
 
         let strand = interval.strand();
 
-        let clamped = entry
-            .find(start, stop)
-            .map(|e| e.val.clone())
-            .filter(|ap| ap.pair.reference().strand() == strand)
-            .map(|ap| {
-                // SAFETY: the lapper guarantees that `ap.pair` overlaps
-                // `interval`, so `clamp()` will always succeed.
-                let pair = ap.pair.clamp(interval.clone()).unwrap();
-                (pair, ap.chain)
-            })
-            .collect::<Vec<_>>();
+        let mut hits = Vec::<(usize, ContiguousIntervalPair)>::new();
 
-        if clamped.is_empty() {
+        for e in entry.find(start, stop) {
+            if e.val.pair.reference().strand() != strand {
+                continue;
+            }
+
+            // SAFETY: the lapper guarantees that `e.val.pair` overlaps
+            // `interval`, so `clamp()` will always succeed.
+            let pair = e.val.pair.clone().clamp(interval.clone()).unwrap();
+            hits.push((e.val.chain_id, pair));
+        }
+
+        if hits.is_empty() {
             return None;
         }
 
-        let mut groups = HashMap::<usize, (Header, Vec<ContiguousIntervalPair>)>::new();
+        // Sort by chain ID so that consecutive entries with the same ID are
+        // adjacent, then group them.
+        hits.sort_by_key(|(id, _)| *id);
 
-        for (pair, chain) in clamped {
-            groups
-                .entry(chain.id())
-                .or_insert_with(|| (chain, Vec::new()))
-                .1
-                .push(pair);
+        let mut results = Vec::<LiftoverResult>::new();
+
+        for (chain_id, pair) in hits {
+            match results.last_mut() {
+                Some(last) if last.chain().id() == chain_id => {
+                    last.segments.push(pair);
+                }
+                _ => {
+                    let chain = self.chains[&chain_id].clone();
+                    results.push(LiftoverResult {
+                        chain,
+                        segments: vec![pair],
+                    });
+                }
+            }
         }
 
-        let results = groups
-            .into_values()
-            .map(|(chain, segments)| LiftoverResult { chain, segments })
-            .collect::<Vec<_>>();
+        // Within each chain group, ensure segments are sorted by reference
+        // start position.
+        for result in &mut results {
+            result.segments.sort_by(|a, b| {
+                a.reference()
+                    .start()
+                    .cmp(b.reference().start())
+                    .then_with(|| a.reference().end().cmp(b.reference().end()))
+            });
+        }
+
+        // Sort results by score descending so the best chain comes first,
+        // with chain ID ascending as a tiebreaker.
+        results.sort_by(|a, b| {
+            b.chain()
+                .score()
+                .cmp(&a.chain().score())
+                .then_with(|| a.chain().id().cmp(&b.chain().id()))
+        });
 
         Some(results)
     }
@@ -152,6 +183,7 @@ impl Machine {
 
 #[cfg(test)]
 mod tests {
+    use omics::coordinate::Contig;
     use omics::coordinate::interbase::Coordinate;
     use omics::coordinate::position::interbase::Position;
 
@@ -165,8 +197,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Positive, 1u64);
-        let to = Coordinate::new("seq0", Strand::Positive, 7u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 1u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 7u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval).unwrap();
@@ -197,8 +229,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Negative, 7u64);
-        let to = Coordinate::new("seq0", Strand::Negative, 1u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 7u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 1u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval).unwrap();
@@ -230,8 +262,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Positive, 1u64);
-        let to = Coordinate::new("seq0", Strand::Positive, 7u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 1u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 7u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval).unwrap();
@@ -263,8 +295,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Negative, 7u64);
-        let to = Coordinate::new("seq0", Strand::Negative, 1u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 7u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 1u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval).unwrap();
@@ -296,8 +328,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Positive, 1u64);
-        let to = Coordinate::new("seq0", Strand::Positive, 7u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 1u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 7u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval);
@@ -314,8 +346,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Negative, 7u64);
-        let to = Coordinate::new("seq0", Strand::Negative, 1u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 7u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 1u64);
 
         let interval = Interval::try_new(from, to)?;
         let results = machine.liftover(interval);
@@ -334,23 +366,21 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Positive, 1u64);
-        let to = Coordinate::new("seq0", Strand::Positive, 5u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 1u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 5u64);
         let interval = Interval::try_new(from, to)?;
 
-        let mut results = machine.liftover(interval).unwrap();
+        let results = machine.liftover(interval).unwrap();
         assert_eq!(results.len(), 2);
 
-        // Sort by chain ID for deterministic assertions.
-        results.sort_by_key(|r| r.chain().id());
-
-        assert_eq!(results[0].chain().id(), 0);
+        // Results are sorted by score descending.
         assert_eq!(results[0].chain().score(), 100);
+        assert_eq!(results[0].chain().id(), 0);
         assert_eq!(results[0].segments().len(), 1);
         assert_eq!(results[0].segments()[0].query().contig().as_str(), "seq1");
 
-        assert_eq!(results[1].chain().id(), 1);
         assert_eq!(results[1].chain().score(), 50);
+        assert_eq!(results[1].chain().id(), 1);
         assert_eq!(results[1].segments().len(), 1);
         assert_eq!(results[1].segments()[0].query().contig().as_str(), "seq2");
 
@@ -365,8 +395,8 @@ mod tests {
         let reader = Reader::new(&data[..]);
         let machine = machine::Builder.try_build_from(reader)?;
 
-        let from = Coordinate::new("seq0", Strand::Positive, 0u64);
-        let to = Coordinate::new("seq0", Strand::Positive, 10u64);
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 0u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 10u64);
         let interval = Interval::try_new(from, to)?;
 
         let results = machine.liftover(interval).unwrap();
@@ -374,6 +404,62 @@ mod tests {
         assert_eq!(results[0].segments().len(), 2);
         assert_eq!(results[0].segments()[0].reference().count_entities(), 4);
         assert_eq!(results[0].segments()[1].reference().count_entities(), 4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_liftover_ordering_is_deterministic() -> Result<(), Box<dyn std::error::Error>> {
+        // Three chains with IDs 2, 0, 1 (intentionally out of order in the
+        // input) covering the same region on `seq0`.
+        let data = b"chain 30 seq0 10 + 0 10 seq3 10 + 0 10 2\n10\n\n\
+                      chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\n\
+                      chain 50 seq0 10 + 0 10 seq2 10 + 0 10 1\n10";
+        let reader = Reader::new(&data[..]);
+        let machine = machine::Builder.try_build_from(reader)?;
+
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 0u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 10u64);
+        let interval = Interval::try_new(from, to)?;
+
+        // Run liftover multiple times and verify ordering is stable.
+        for _ in 0..10 {
+            let results = machine.liftover(interval.clone()).unwrap();
+            assert_eq!(results.len(), 3);
+
+            // Results must be sorted by score descending.
+            assert_eq!(results[0].chain().score(), 100);
+            assert_eq!(results[1].chain().score(), 50);
+            assert_eq!(results[2].chain().score(), 30);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_segments_ordered_by_reference_position() -> Result<(), Box<dyn std::error::Error>> {
+        // One chain with three blocks separated by gaps, ensuring segments
+        // come back in reference-position order. Layout: 5 + gap(2,2) + 5 +
+        // gap(2,2) + 6 = 20 reference bases.
+        let data = b"chain 0 seq0 20 + 0 20 seq1 20 + 0 20 0\n5\t2\t2\n5\t2\t2\n6";
+        let reader = Reader::new(&data[..]);
+        let machine = machine::Builder.try_build_from(reader)?;
+
+        let from = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 0u64);
+        let to = Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 20u64);
+        let interval = Interval::try_new(from, to)?;
+
+        let results = machine.liftover(interval).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 3);
+
+        // Segments must be sorted by reference start position.
+        let starts: Vec<_> = results[0]
+            .segments()
+            .iter()
+            .map(|s| s.reference().start().position().get())
+            .collect();
+        assert_eq!(starts, vec![0, 7, 14]);
 
         Ok(())
     }

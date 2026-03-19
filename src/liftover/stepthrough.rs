@@ -143,82 +143,58 @@ impl Iterator for StepThroughWithData {
                 Err(e) => return Some(Err(e)),
             },
         };
-        // (1) Calculate the coordinates for the reference interval.
-        // (a) Set the reference start to point to the current reference pointer.
+        // (1) Capture reference start, then advance pointer by chunk size.
         let reference_start = self.reference_pointer.clone();
 
-        // (b) Push forward the reference pointer by the amount specified in the chunk.
-        self.reference_pointer = match self.reference_pointer.clone().move_forward(chunk.size()) {
-            Some(pointer) => pointer,
-            None => {
-                return Some(Err(Error::IntervalStepthroughOutOfBounds(
-                    String::from("reference forward by chunk size"),
-                    self.reference_pointer.clone(),
-                    chunk.size(),
-                )));
-            }
-        };
+        if !self.reference_pointer.move_forward(chunk.size()) {
+            return Some(Err(Error::IntervalStepthroughOutOfBounds(
+                String::from("reference forward by chunk size"),
+                self.reference_pointer.clone(),
+                chunk.size(),
+            )));
+        }
 
-        // (c) Set the reference end to point to the current reference pointer.
         let reference_end = self.reference_pointer.clone();
-
-        // (d) Create the reference interval.
         let reference = match Interval::try_new(reference_start, reference_end) {
             Ok(interval) => interval,
             Err(err) => return Some(Err(Error::Interval(err))),
         };
 
-        // (2) Calculate the coordinates for the query interval.
-        // (a) Set the query start to point to the current query pointer.
+        // (2) Capture query start, then advance pointer by chunk size.
         let query_start = self.query_pointer.clone();
 
-        // (b) Push forward the query pointer by the amount specified in the chunk.
-        self.query_pointer = match self.query_pointer.clone().move_forward(chunk.size()) {
-            Some(pointer) => pointer,
-            None => {
-                return Some(Err(Error::IntervalStepthroughOutOfBounds(
-                    String::from("query forward by chunk size"),
-                    self.query_pointer.clone(),
-                    chunk.size(),
-                )));
-            }
-        };
+        if !self.query_pointer.move_forward(chunk.size()) {
+            return Some(Err(Error::IntervalStepthroughOutOfBounds(
+                String::from("query forward by chunk size"),
+                self.query_pointer.clone(),
+                chunk.size(),
+            )));
+        }
 
-        // (c) Set the query end to point to the current query pointer.
         let query_end = self.query_pointer.clone();
-
-        // (d) Create the query interval.
         let query = match Interval::try_new(query_start, query_end) {
             Ok(interval) => interval,
             Err(err) => return Some(Err(Error::Interval(err))),
         };
 
-        // (3) Adjust the pointers to the current query and reference locations.
-        // (a) If there is a query offset, add it to the query pointer.
+        // (3) Adjust pointers for gaps.
         if let Some(dq) = chunk.dq() {
-            self.query_pointer = match self.query_pointer.clone().move_forward(dq) {
-                Some(coordinate) => coordinate,
-                None => {
-                    return Some(Err(Error::IntervalStepthroughOutOfBounds(
-                        String::from("query forward by dq"),
-                        self.query_pointer.clone(),
-                        dq,
-                    )));
-                }
+            if !self.query_pointer.move_forward(dq) {
+                return Some(Err(Error::IntervalStepthroughOutOfBounds(
+                    String::from("query forward by dq"),
+                    self.query_pointer.clone(),
+                    dq,
+                )));
             }
         }
 
-        // (b) If there is a reference offset, add it to the reference pointer.
         if let Some(dt) = chunk.dt() {
-            self.reference_pointer = match self.reference_pointer.clone().move_forward(dt) {
-                Some(coordinate) => coordinate,
-                None => {
-                    return Some(Err(Error::IntervalStepthroughOutOfBounds(
-                        String::from("reference forward by dt"),
-                        self.reference_pointer.clone(),
-                        dt,
-                    )));
-                }
+            if !self.reference_pointer.move_forward(dt) {
+                return Some(Err(Error::IntervalStepthroughOutOfBounds(
+                    String::from("reference forward by dt"),
+                    self.reference_pointer.clone(),
+                    dt,
+                )));
             }
         }
 
@@ -253,6 +229,7 @@ impl Iterator for StepThrough {
 
 #[cfg(test)]
 mod tests {
+    use omics::coordinate::Contig;
     use omics::coordinate::Strand;
     use omics::coordinate::interbase::Coordinate;
     use omics::coordinate::interval::interbase::Interval;
@@ -278,13 +255,13 @@ mod tests {
         let result = stepthrough.next().unwrap().unwrap();
 
         let reference = Interval::try_new(
-            Coordinate::new("seq0", Strand::Positive, 0u64),
-            Coordinate::new("seq0", Strand::Positive, 3u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 0u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 3u64),
         )?;
 
         let query = Interval::try_new(
-            Coordinate::new("seq0", Strand::Negative, 5u64),
-            Coordinate::new("seq0", Strand::Negative, 2u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 5u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 2u64),
         )?;
 
         assert_eq!(result.reference(), &reference);
@@ -297,13 +274,13 @@ mod tests {
         let result = stepthrough.next().unwrap().unwrap();
 
         let reference = Interval::try_new(
-            Coordinate::new("seq0", Strand::Positive, 3u64),
-            Coordinate::new("seq0", Strand::Positive, 4u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 3u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 4u64),
         )?;
 
         let query = Interval::try_new(
-            Coordinate::new("seq0", Strand::Negative, 1u64),
-            Coordinate::new("seq0", Strand::Negative, 0u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 1u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 0u64),
         )?;
 
         assert_eq!(result.reference(), &reference);
@@ -338,13 +315,13 @@ mod tests {
         let result = stepthrough.next().unwrap().unwrap();
 
         let reference = Interval::try_new(
-            Coordinate::new("seq0", Strand::Positive, 0u64),
-            Coordinate::new("seq0", Strand::Positive, 2u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 0u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 2u64),
         )?;
 
         let query = Interval::try_new(
-            Coordinate::new("seq0", Strand::Negative, 9u64),
-            Coordinate::new("seq0", Strand::Negative, 7u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 9u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 7u64),
         )?;
 
         assert_eq!(result.reference(), &reference);
@@ -357,13 +334,13 @@ mod tests {
         let result = stepthrough.next().unwrap().unwrap();
 
         let reference = Interval::try_new(
-            Coordinate::new("seq0", Strand::Positive, 2u64),
-            Coordinate::new("seq0", Strand::Positive, 3u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 2u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Positive, 3u64),
         )?;
 
         let query = Interval::try_new(
-            Coordinate::new("seq0", Strand::Negative, 6u64),
-            Coordinate::new("seq0", Strand::Negative, 5u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 6u64),
+            Coordinate::new(Contig::new_unchecked("seq0"), Strand::Negative, 5u64),
         )?;
 
         assert_eq!(result.reference(), &reference);

@@ -30,6 +30,7 @@ use chainfile as chain;
 use flate2::read::GzDecoder;
 use noodles::fasta;
 use noodles::fasta::record::Sequence;
+use omics::coordinate::Contig;
 use omics::coordinate::Strand;
 use omics::coordinate::interbase::Coordinate;
 use omics::coordinate::interval::interbase::Interval;
@@ -82,9 +83,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|(name, reference_sequence)| {
             Interval::try_new(
-                Coordinate::new(name.as_str(), Strand::Positive, 0_u64),
                 Coordinate::new(
-                    name.as_str(),
+                    Contig::new_unchecked(name.as_str()),
+                    Strand::Positive,
+                    0_u64,
+                ),
+                Coordinate::new(
+                    Contig::new_unchecked(name.as_str()),
                     Strand::Positive,
                     reference_sequence.len() as u64,
                 ),
