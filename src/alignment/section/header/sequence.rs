@@ -105,7 +105,7 @@ impl Sequence {
         alignment_start: &str,
         alignment_end: &str,
     ) -> Result<Self> {
-        let chromosome_name = chromosome_name.into();
+        let chromosome_name = Contig::new_unchecked(chromosome_name);
 
         let chromosome_size = chromosome_size
             .parse()
@@ -269,8 +269,9 @@ impl Sequence {
             ),
         };
 
-        let start = Coordinate::new(self.chromosome_name(), self.strand(), start_pos);
-        let end = Coordinate::new(self.chromosome_name(), self.strand(), end_pos);
+        let contig = Contig::new_unchecked(self.chromosome_name());
+        let start = Coordinate::new(contig.clone(), self.strand(), start_pos);
+        let end = Coordinate::new(contig, self.strand(), end_pos);
 
         Interval::try_new(start, end).map_err(Error::Interval)
     }

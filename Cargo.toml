@@ -11,7 +11,7 @@ edition = "2021"
 rust-version = "1.85.0"
 
 [dependencies]
-omics = { version = "0.2.0", features = ["coordinate", "position-u64"] }
+omics = { version = "0.4.0", features = ["coordinate", "position-u64"] }
 anyhow = { version = "1.0.89", optional = true }
 clap = { version = "4.5.20", features = ["derive"], optional = true }
 clap-verbosity-flag = { version = "2.2.2", optional = true }
@@ -31,7 +31,9 @@ tracing-subscriber = { version = "0.3.18", features = [
 weighted_rand = { version = "0.4.2", optional = true }
 
 [dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
 noodles = { version = "0.87.0", features = ["core", "fasta"] }
+rand = "0.8.5"
 tabled = { version = "0.16.0" }
 
 [features]
@@ -51,3 +53,15 @@ binaries = [
 [[bin]]
 name = "compare-crossmap"
 required-features = ["binaries"]
+
+[[bench]]
+name = "machine"
+harness = false
+
+[[bench]]
+name = "liftover"
+harness = false
+
+[[bench]]
+name = "end_to_end"
+harness = false

@@ -32,6 +32,7 @@ use chainfile::liftover;
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use flate2::read::GzDecoder;
+use omics::coordinate::Contig;
 use omics::coordinate::Coordinate;
 use omics::coordinate::Interval;
 use omics::coordinate::Strand;
@@ -174,7 +175,7 @@ impl BedEntry {
     /// Turns the BED entry back into an interbase coordinate.
     fn into_coordinate(self, strand: Strand) -> Coordinate<Interbase> {
         omics::coordinate::Coordinate::<Interbase>::new(
-            self.contig.as_str(),
+            Contig::new_unchecked(self.contig.as_str()),
             strand,
             self.start as Number,
         )
@@ -624,17 +625,30 @@ fn throw(args: &Args) -> Result<()> {
     let chainfile_liftover_start = std::time::Instant::now();
 
     for (from, crossmap_result) in crossmap_results {
-        let start =
-            Coordinate::<Interbase>::new(from.contig.as_str(), Strand::Positive, from.start);
-        let end = Coordinate::<Interbase>::new(from.contig.as_str(), Strand::Positive, from.end);
+        let start = Coordinate::<Interbase>::new(
+            Contig::new_unchecked(from.contig.as_str()),
+            Strand::Positive,
+            from.start,
+        );
+        let end = Coordinate::<Interbase>::new(
+            Contig::new_unchecked(from.contig.as_str()),
+            Strand::Positive,
+            from.end,
+        );
         let from_interval =
             Interval::try_new(start, end).expect("interval to be able to be created");
 
         let chainfile_result = machine
             .liftover(from_interval)
             .and_then(|results| {
-                // Select the result from the highest-scoring chain.
-                let result = results.into_iter().max_by_key(|r| r.chain().score())?;
+                // Select the result from the highest-scoring chain. Ties are
+                // broken by smallest chain ID for determinism.
+                let result = results.into_iter().max_by(|a, b| {
+                    a.chain()
+                        .score()
+                        .cmp(&b.chain().score())
+                        .then_with(|| b.chain().id().cmp(&a.chain().id()))
+                })?;
 
                 let mut segments = result.into_segments();
                 assert!(
@@ -664,7 +678,7 @@ fn throw(args: &Args) -> Result<()> {
                 let (contig, _, position) = query.into_start().into_parts();
 
                 Some(LiftoverResult::Mapped(BedEntry::new_single_position(
-                    contig.into_inner(),
+                    contig.to_string(),
                     position.get() as Number,
                 )))
             })
