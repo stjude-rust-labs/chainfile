@@ -2,6 +2,8 @@
 
 use std::io::BufRead;
 
+use thiserror::Error;
+
 use crate::Line;
 use crate::Reader;
 use crate::alignment::Section;
@@ -17,69 +19,40 @@ use crate::reader;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// An error related to the parsing of an alignment section.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     /// The file abruptly ended before closing an alignment section.
+    #[error("the file abruptly ended in the middle of an alignment section")]
     AbruptEndInSection,
 
     /// There was a blank line within an alignment section.
+    #[error("found blank line in alignment section: line {0}")]
     BlankLineInSection(usize),
 
     /// Alignment data was found in between alignment sections.
+    #[error("found alignment data between sections: record: {0}")]
     DataBetweenSections(data::Record),
 
     /// There was a header record within an alignment section.
+    #[error("found header in alignment section: record: {0}")]
     HeaderInSection(header::Record),
 
     /// There was an issue reading from the underlying reader.
+    #[error("reader error: {0}")]
     Reader(reader::Error),
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::AbruptEndInSection => {
-                write!(
-                    f,
-                    "the file abruptly ended in the middle of an alignment section"
-                )
-            }
-            ParseError::BlankLineInSection(line_no) => {
-                write!(f, "found blank line in alignment section: line {line_no}")
-            }
-            ParseError::DataBetweenSections(record) => {
-                write!(f, "found alignment data between sections: record: {record}")
-            }
-            ParseError::HeaderInSection(record) => {
-                write!(f, "found header in alignment section: record: {record}")
-            }
-            ParseError::Reader(err) => write!(f, "reader error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
-
 /// An error related to [`Sections`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// A builder error.
+    #[error("builder error: {0}")]
     Builder(builder::Error),
 
     /// A parse error.
+    #[error("parse error: {0}")]
     Parse(ParseError),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Builder(err) => write!(f, "builder error: {err}"),
-            Error::Parse(err) => write!(f, "parse error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;

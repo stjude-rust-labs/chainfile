@@ -8,7 +8,7 @@ homepage = "https://github.com/stjude-rust-labs/chainfile"
 repository = "https://github.com/stjude-rust-labs/chainfile"
 documentation = "https://docs.rs/chainfile"
 edition = "2021"
-rust-version = "1.82.0"
+rust-version = "1.85.0"
 
 [dependencies]
 omics = { version = "0.2.0", features = ["coordinate", "position-u64"] }
@@ -21,6 +21,7 @@ rand = { version = "0.8.5", optional = true }
 regex = "1.11.1"
 reqwest = { version = "0.12.12", features = ["blocking"], optional = true }
 rust-lapper = "1.1.0"
+thiserror = "2.0.18"
 tempdir = { version = "0.3.7", optional = true }
 tracing = { version = "0.1.40", optional = true }
 tracing-log = "0.2.0"

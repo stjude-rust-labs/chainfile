@@ -3,32 +3,22 @@
 use omics::coordinate;
 use omics::coordinate::interbase::Coordinate;
 use omics::coordinate::interval::interbase::Interval;
+use thiserror::Error;
 
 /// An error related to constructing a contiguous interval pair.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// The two intervals don't have the same size. As such, they can't
     /// contiguously map to one another.
+    #[error(
+        "reference interval entity count ({0}) doesn't match query interval entity count ({1})"
+    )]
     EntityCountsDontMatch(u64, u64),
 
     /// An interval error.
+    #[error("interval error: {0}")]
     Interval(coordinate::interval::Error),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::EntityCountsDontMatch(reference, query) => write!(
-                f,
-                "reference interval entity count ({reference}) doesn't match query interval \
-                 entity count ({query})"
-            ),
-            Error::Interval(err) => write!(f, "interval error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A utility struct which contains a linearly mapped segment of both the
 /// reference and the query sequence.

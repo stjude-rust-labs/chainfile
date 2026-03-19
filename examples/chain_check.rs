@@ -125,37 +125,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        for region in results {
-            let query_strand = region.query().strand();
+        for chain_result in results {
+            for segment in chain_result.into_segments() {
+                let query_strand = segment.query().strand();
 
-            let query_sequence = query
-                .get(region.query().contig().as_str())
-                .unwrap_or_else(|| {
-                    panic!(
-                        "query FASTA did not contain necessary contig \"{}\": are the FASTA files \
-                         and chain file correct?",
-                        region.query().contig()
-                    )
-                });
+                let query_sequence =
+                    query
+                        .get(segment.query().contig().as_str())
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "query FASTA did not contain necessary contig \"{}\": are the \
+                                 FASTA files and chain file correct?",
+                                segment.query().contig()
+                            )
+                        });
 
-            let (reference_interval, query_interval) = region.into_parts();
-            let reference = get_sequence_for_interval(reference_sequence, reference_interval);
-            let query = get_sequence_for_interval(query_sequence, query_interval);
+                let (reference_interval, query_interval) = segment.into_parts();
+                let reference = get_sequence_for_interval(reference_sequence, reference_interval);
+                let query = get_sequence_for_interval(query_sequence, query_interval);
 
-            assert_eq!(reference.len(), query.len());
+                assert_eq!(reference.len(), query.len());
 
-            let positions = query.len();
-            let mismatches = count_mismatches(&reference, &query);
+                let positions = query.len();
+                let mismatches = count_mismatches(&reference, &query);
 
-            total_positions += positions;
-            total_mismatches += mismatches;
+                total_positions += positions;
+                total_mismatches += mismatches;
 
-            if query_strand == Strand::Positive {
-                positive_positions += positions;
-                positive_mismatches += mismatches;
-            } else {
-                negative_positions += positions;
-                negative_mismatches += mismatches;
+                if query_strand == Strand::Positive {
+                    positive_positions += positions;
+                    positive_mismatches += mismatches;
+                } else {
+                    negative_positions += positions;
+                    negative_mismatches += mismatches;
+                }
             }
         }
     }

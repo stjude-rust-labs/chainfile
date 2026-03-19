@@ -8,6 +8,7 @@ use omics::coordinate::interval::interbase::Interval;
 use omics::coordinate::position::Number;
 use rust_lapper as lapper;
 
+use crate::alignment::section::header::Record as Header;
 use crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
 
 pub mod builder;
@@ -16,6 +17,47 @@ pub use builder::Builder;
 
 /// A dictionary of chromosome names and their size.
 pub type ChromosomeDictionary = HashMap<String, Number>;
+
+/// A mapping segment annotated with the chain from which it originated.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AnnotatedPair {
+    /// The chain from which this segment originated.
+    chain: Header,
+
+    /// The mapping segment.
+    pair: ContiguousIntervalPair,
+}
+
+/// The liftover results from a single chain.
+///
+/// Each chain produces one or more contiguous mapping segments. When a
+/// query interval spans a gap within a chain, the chain contributes
+/// multiple segments (one per aligned block that overlaps the query).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LiftoverResult {
+    /// The chain from which these liftover results originated.
+    chain: Header,
+
+    /// The mapping segments from this chain that overlap the query.
+    segments: Vec<ContiguousIntervalPair>,
+}
+
+impl LiftoverResult {
+    /// Gets the chain from which these liftover results originated.
+    pub fn chain(&self) -> &Header {
+        &self.chain
+    }
+
+    /// Gets the mapping segments.
+    pub fn segments(&self) -> &[ContiguousIntervalPair] {
+        &self.segments
+    }
+
+    /// Consumes `self` and returns the mapping segments.
+    pub fn into_segments(self) -> Vec<ContiguousIntervalPair> {
+        self.segments
+    }
+}
 
 /// A machine for lifting over coordinates from a reference genome to a query
 /// genome.
@@ -26,7 +68,7 @@ pub type ChromosomeDictionary = HashMap<String, Number>;
 pub struct Machine {
     /// The inner lookup table of positions in the reference genome to positions
     /// in the query genome for each contig in the reference genome.
-    inner: HashMap<Contig, lapper::Lapper<Number, ContiguousIntervalPair>>,
+    inner: HashMap<Contig, lapper::Lapper<Number, AnnotatedPair>>,
 
     /// The reference chromosome corpus.
     reference_chromosomes: ChromosomeDictionary,
@@ -48,13 +90,12 @@ impl Machine {
         &self.query_chromosomes
     }
 
-    /// Gets a reference to the inner hashmap.
-    pub fn inner(&self) -> &HashMap<Contig, lapper::Lapper<Number, ContiguousIntervalPair>> {
-        &self.inner
-    }
-
     /// Performs a liftover from the specified `interval` to the query genome.
-    pub fn liftover(&self, interval: Interval) -> Option<Vec<ContiguousIntervalPair>> {
+    ///
+    /// Results are grouped by the chain from which each mapping segment
+    /// originated. Each [`LiftoverResult`] contains one or more contiguous
+    /// segments from a single chain, along with the chain's header.
+    pub fn liftover(&self, interval: Interval) -> Option<Vec<LiftoverResult>> {
         let entry = self.inner.get(interval.contig())?;
 
         let (start, stop) = match interval.strand() {
@@ -74,17 +115,38 @@ impl Machine {
 
         let strand = interval.strand();
 
-        let results = entry
+        let clamped = entry
             .find(start, stop)
             .map(|e| e.val.clone())
-            .filter(|i| i.reference().strand() == strand)
-            .map(move |pair| pair.clamp(interval.clone()).unwrap())
+            .filter(|ap| ap.pair.reference().strand() == strand)
+            .map(|ap| {
+                // SAFETY: the lapper guarantees that `ap.pair` overlaps
+                // `interval`, so `clamp()` will always succeed.
+                let pair = ap.pair.clamp(interval.clone()).unwrap();
+                (pair, ap.chain)
+            })
             .collect::<Vec<_>>();
 
-        match results.is_empty() {
-            true => None,
-            false => Some(results),
+        if clamped.is_empty() {
+            return None;
         }
+
+        let mut groups = HashMap::<usize, (Header, Vec<ContiguousIntervalPair>)>::new();
+
+        for (pair, chain) in clamped {
+            groups
+                .entry(chain.id())
+                .or_insert_with(|| (chain, Vec::new()))
+                .1
+                .push(pair);
+        }
+
+        let results = groups
+            .into_values()
+            .map(|(chain, segments)| LiftoverResult { chain, segments })
+            .collect::<Vec<_>>();
+
+        Some(results)
     }
 }
 
@@ -107,11 +169,12 @@ mod tests {
         let to = Coordinate::new("seq0", Strand::Positive, 7u64);
 
         let interval = Interval::try_new(from, to)?;
-        let mut results = machine.liftover(interval).unwrap();
+        let results = machine.liftover(interval).unwrap();
 
         assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 1);
 
-        let result = results.pop().unwrap();
+        let result = &results[0].segments()[0];
 
         assert_eq!(result.reference().contig().as_str(), "seq0");
         assert_eq!(result.reference().start().strand(), Strand::Positive);
@@ -138,11 +201,12 @@ mod tests {
         let to = Coordinate::new("seq0", Strand::Negative, 1u64);
 
         let interval = Interval::try_new(from, to)?;
-        let mut results = machine.liftover(interval).unwrap();
+        let results = machine.liftover(interval).unwrap();
 
         assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 1);
 
-        let result = results.pop().unwrap();
+        let result = &results[0].segments()[0];
 
         assert_eq!(result.reference().contig().as_str(), "seq0");
         assert_eq!(result.reference().start().strand(), Strand::Negative);
@@ -170,11 +234,12 @@ mod tests {
         let to = Coordinate::new("seq0", Strand::Positive, 7u64);
 
         let interval = Interval::try_new(from, to)?;
-        let mut results = machine.liftover(interval).unwrap();
+        let results = machine.liftover(interval).unwrap();
 
         assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 1);
 
-        let result = results.pop().unwrap();
+        let result = &results[0].segments()[0];
 
         assert_eq!(result.reference().contig().as_str(), "seq0");
         assert_eq!(result.reference().start().strand(), Strand::Positive);
@@ -202,11 +267,12 @@ mod tests {
         let to = Coordinate::new("seq0", Strand::Negative, 1u64);
 
         let interval = Interval::try_new(from, to)?;
-        let mut results = machine.liftover(interval).unwrap();
+        let results = machine.liftover(interval).unwrap();
 
         assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 1);
 
-        let result = results.pop().unwrap();
+        let result = &results[0].segments()[0];
 
         assert_eq!(result.reference().contig().as_str(), "seq0");
         assert_eq!(result.reference().start().strand(), Strand::Negative);
@@ -255,6 +321,59 @@ mod tests {
         let results = machine.liftover(interval);
 
         assert_eq!(results, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_grouped_by_chain() -> Result<(), Box<dyn std::error::Error>> {
+        // Two chains covering the same region on `seq0`, mapping to
+        // `seq1` and `seq2` respectively.
+        let data =
+            b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 50 seq0 10 + 0 10 seq2 10 + 0 10 1\n10";
+        let reader = Reader::new(&data[..]);
+        let machine = machine::Builder.try_build_from(reader)?;
+
+        let from = Coordinate::new("seq0", Strand::Positive, 1u64);
+        let to = Coordinate::new("seq0", Strand::Positive, 5u64);
+        let interval = Interval::try_new(from, to)?;
+
+        let mut results = machine.liftover(interval).unwrap();
+        assert_eq!(results.len(), 2);
+
+        // Sort by chain ID for deterministic assertions.
+        results.sort_by_key(|r| r.chain().id());
+
+        assert_eq!(results[0].chain().id(), 0);
+        assert_eq!(results[0].chain().score(), 100);
+        assert_eq!(results[0].segments().len(), 1);
+        assert_eq!(results[0].segments()[0].query().contig().as_str(), "seq1");
+
+        assert_eq!(results[1].chain().id(), 1);
+        assert_eq!(results[1].chain().score(), 50);
+        assert_eq!(results[1].segments().len(), 1);
+        assert_eq!(results[1].segments()[0].query().contig().as_str(), "seq2");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_gapped_chain_returns_multiple_segments() -> Result<(), Box<dyn std::error::Error>> {
+        // One chain with a gap: two blocks of 4, separated by a gap of
+        // 2 in both reference and query.
+        let data = b"chain 0 seq0 10 + 0 10 seq1 10 + 0 10 0\n4\t2\t2\n4";
+        let reader = Reader::new(&data[..]);
+        let machine = machine::Builder.try_build_from(reader)?;
+
+        let from = Coordinate::new("seq0", Strand::Positive, 0u64);
+        let to = Coordinate::new("seq0", Strand::Positive, 10u64);
+        let interval = Interval::try_new(from, to)?;
+
+        let results = machine.liftover(interval).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 2);
+        assert_eq!(results[0].segments()[0].reference().count_entities(), 4);
+        assert_eq!(results[0].segments()[1].reference().count_entities(), 4);
 
         Ok(())
     }

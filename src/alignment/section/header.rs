@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use omics::coordinate::position::Number;
 pub use sequence::Sequence;
+use thiserror::Error;
 
 /// The prefix for a header record.
 pub const HEADER_PREFIX: &str = "chain";
@@ -22,76 +23,46 @@ pub const NUM_HEADER_FIELDS: usize = 13;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// An error associated with parsing a header record.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     /// An incorrect number of fields in the header line.
+    #[error(
+        "invalid number of fields in header: expected {NUM_HEADER_FIELDS} fields, found {0} fields"
+    )]
     IncorrectNumberOfFields(usize),
 
     /// An invalid prefix.
+    #[error("invalid prefix: expected \"{HEADER_PREFIX}\", found \"{0}\"")]
     InvalidPrefix(String),
 
     /// An invalid score.
+    #[error("invalid score: {0}")]
     InvalidScore(ParseIntError),
 
     /// An invalid reference sequence.
+    #[error("invalid reference sequence: {0}")]
     InvalidReferenceSequence(sequence::Error),
 
     /// An invalid query sequence.
+    #[error("invalid query sequence: {0}")]
     InvalidQuerySequence(sequence::Error),
 
     /// An invalid id.
+    #[error("invalid id: {0}")]
     InvalidId(ParseIntError),
 
     /// The end position exceeds the size of the chromosome.
+    #[error("the end position ({1}) exceeds the size of the chromosome `{0}` ({2})")]
     EndPositionExceedsSize(String, Number, Number),
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::IncorrectNumberOfFields(fields) => write!(
-                f,
-                "invalid number of fields in header: expected {NUM_HEADER_FIELDS} fields, found \
-                 {fields} fields"
-            ),
-            ParseError::InvalidPrefix(prefix) => {
-                write!(
-                    f,
-                    "invalid prefix: expected \"{HEADER_PREFIX}\", found \"{prefix}\""
-                )
-            }
-            ParseError::InvalidScore(err) => write!(f, "invalid score: {err}"),
-            ParseError::InvalidReferenceSequence(err) => {
-                write!(f, "invalid reference sequence: {err}")
-            }
-            ParseError::InvalidQuerySequence(err) => write!(f, "invalid query sequence: {err}"),
-            ParseError::InvalidId(err) => write!(f, "invalid id: {err}"),
-            ParseError::EndPositionExceedsSize(chrom, pos, size) => write!(
-                f,
-                "the end position ({pos}) exceeds the size of the chromosome `{chrom}` ({size})"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
-
 /// An error related to a [`Record`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// A parse error.
+    #[error("parse error: {0}")]
     Parse(ParseError),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Parse(err) => write!(f, "parse error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;

@@ -9,6 +9,7 @@ use omics::coordinate::interval;
 use omics::coordinate::interval::interbase::Interval;
 use omics::coordinate::position::Number;
 use omics::coordinate::strand;
+use thiserror::Error;
 
 use crate::alignment::section::header::DELIMITER;
 
@@ -17,60 +18,40 @@ use crate::alignment::section::header::DELIMITER;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Errors associated with parsing a sequence.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     /// An invalid chromosome size.
+    #[error("invalid chromosome size: {0}")]
     InvalidChromosomeSize(ParseIntError),
 
     /// An invalid strand.
+    #[error("invalid strand: {0}")]
     InvalidStrand(strand::Error),
 
     /// An invalid alignment start.
+    #[error("invalid alignment start: {0}")]
     InvalidAlignmentStart(ParseIntError),
 
     /// An invalid alignment end.
+    #[error("invalid alignment end: {0}")]
     InvalidAlignmentEnd(ParseIntError),
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::InvalidChromosomeSize(err) => write!(f, "invalid chromosome size: {err}"),
-            ParseError::InvalidStrand(err) => write!(f, "invalid strand: {err}"),
-            ParseError::InvalidAlignmentStart(err) => write!(f, "invalid alignment start: {err}"),
-            ParseError::InvalidAlignmentEnd(err) => write!(f, "invalid alignment end: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
-
 /// An error related to a sequence.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An interval error.
+    #[error("interval error: {0}")]
     Interval(interval::Error),
 
     /// A parse error.
+    #[error("parse error: {0}")]
     Parse(ParseError),
 
     /// The start position is greater than the end position.
+    #[error("start position greater than end position")]
     StartPositionGreaterThanEndPosition,
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Interval(err) => write!(f, "interval error: {err}"),
-            Error::Parse(err) => write!(f, "parse error: {err}"),
-            Error::StartPositionGreaterThanEndPosition => {
-                write!(f, "start position greater than end position")
-            }
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;

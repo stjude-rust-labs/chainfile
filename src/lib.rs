@@ -106,8 +106,15 @@
 //! let machine = chain::liftover::machine::Builder::default().try_build_from(reader)?;
 //!
 //! let interval = "seq0:+:3-4".parse::<Interval>()?;
-//! for result in machine.liftover(interval).unwrap() {
-//!     println!("{} -> {}", result.reference(), result.query());
+//! for chain_liftover in machine.liftover(interval).unwrap() {
+//!     println!(
+//!         "chain {} (score {})",
+//!         chain_liftover.chain().id(),
+//!         chain_liftover.chain().score()
+//!     );
+//!     for segment in chain_liftover.segments() {
+//!         println!("  {} -> {}", segment.reference(), segment.query());
+//!     }
 //! }
 //!
 //! # Ok::<(), Box<dyn std::error::Error>>(())

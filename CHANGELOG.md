@@ -7,6 +7,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Unreleased
 
+### Added
+
+- `Machine::liftover()` now returns results grouped by chain via `LiftoverResult`,
+  making it possible to distinguish ambiguous mappings (multiple chains) from
+  straddle splits (multiple segments within one chain)
+  ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+- `LiftoverResult` exposes the full chain header via `chain()` and the mapping
+  segments via `segments()` and `into_segments()`
+  ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+- Duplicate chain IDs with inconsistent headers are now detected at build time
+  in `liftover::machine::Builder`
+  ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+
+### Changed
+
+- All error types across the crate now use `thiserror`
+  ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+- MSRV bumped to 1.85.0
+  ([#9](https://github.com/stjude-rust-labs/chainfile/pull/9)).
+
 ## 0.3.0 - 01-03-2025
 
 ### Added

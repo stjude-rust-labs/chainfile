@@ -3,5 +3,6 @@
 pub mod machine;
 pub mod stepthrough;
 
+pub use machine::LiftoverResult;
 pub use machine::Machine;
 pub use stepthrough::StepThroughWithData;

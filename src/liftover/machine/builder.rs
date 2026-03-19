@@ -7,37 +7,46 @@ use omics::coordinate::Contig;
 use omics::coordinate::Strand;
 use omics::coordinate::position::Number;
 use rust_lapper as lapper;
+use thiserror::Error;
 
+use super::AnnotatedPair;
+use super::ChromosomeDictionary;
+use super::Machine;
 use crate::alignment;
+use crate::alignment::section::header::Record as Header;
 use crate::liftover;
-use crate::liftover::Machine;
-use crate::liftover::machine::ChromosomeDictionary;
-use crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
 use crate::reader;
 
 /// The inner value of the liftover lookup data structure.
-type Iv = lapper::Interval<Number, ContiguousIntervalPair>;
+type Iv = lapper::Interval<Number, AnnotatedPair>;
 
 /// An error related to building a [`Machine`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An error reading alignment sections.
+    #[error("invalid data section: {0}")]
     InvalidSections(alignment::section::sections::Error),
 
     /// An error stepping through the liftover segments.
+    #[error("stepthrough error: {0}")]
     StepthroughError(liftover::stepthrough::Error),
-}
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidSections(err) => write!(f, "invalid data section: {err}"),
-            Error::StepthroughError(err) => write!(f, "stepthrough error: {err}"),
-        }
-    }
-}
+    /// Two chain sections share the same ID but have different headers.
+    #[error(
+        "duplicate chain id `{id}` with inconsistent headers: expected `{expected}`, found \
+         `{found}`"
+    )]
+    DuplicateChainId {
+        /// The chain ID.
+        id: usize,
 
-impl std::error::Error for Error {}
+        /// The first header encountered for this chain ID.
+        expected: Header,
+
+        /// The conflicting header encountered for this chain ID.
+        found: Header,
+    },
+}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;
@@ -65,6 +74,7 @@ impl Builder {
         T: BufRead,
     {
         let mut hm = HashMap::<Contig, Vec<Iv>>::default();
+        let mut chains = HashMap::<usize, Header>::new();
 
         let mut reference_chromosomes = ChromosomeDictionaryBuilder::default();
         let mut query_chromosomes = ChromosomeDictionaryBuilder::default();
@@ -72,7 +82,21 @@ impl Builder {
         for result in reader.sections() {
             let section = result.map_err(Error::InvalidSections)?;
 
-            let header = section.header();
+            let header = section.header().clone();
+
+            match chains.get(&header.id()) {
+                Some(existing) if *existing != header => {
+                    return Err(Error::DuplicateChainId {
+                        id: header.id(),
+                        expected: existing.clone(),
+                        found: header,
+                    });
+                }
+                _ => {
+                    chains.insert(header.id(), header.clone());
+                }
+            }
+
             query_chromosomes.update(
                 header.query_sequence().chromosome_name().to_string(),
                 header.query_sequence().chromosome_size(),
@@ -104,12 +128,15 @@ impl Builder {
                 entry.push(lapper::Interval {
                     start,
                     stop,
-                    val: pair,
+                    val: AnnotatedPair {
+                        chain: header.clone(),
+                        pair,
+                    },
                 })
             }
         }
 
-        let mut inner = HashMap::<Contig, lapper::Lapper<Number, ContiguousIntervalPair>>::new();
+        let mut inner = HashMap::<Contig, lapper::Lapper<Number, AnnotatedPair>>::new();
 
         for (k, v) in hm.into_iter() {
             inner.insert(k, lapper::Lapper::new(v));
@@ -156,5 +183,34 @@ impl ChromosomeDictionaryBuilder {
     /// Consumes `self` and returns the built [`ChromosomeDictionary`].
     fn build(self) -> ChromosomeDictionary {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Reader;
+
+    #[test]
+    fn duplicate_chain_id_with_inconsistent_headers() {
+        // Two chains with the same ID (`0`) but different scores.
+        let data =
+            b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 50 seq0 10 + 0 10 seq2 10 + 0 10 0\n10";
+        let reader = Reader::new(&data[..]);
+        let err = Builder.try_build_from(reader).unwrap_err();
+
+        assert!(
+            matches!(err, Error::DuplicateChainId { id: 0, .. }),
+            "expected DuplicateChainId error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn duplicate_chain_id_with_consistent_headers_succeeds() {
+        // Two identical chain sections with the same ID—this is fine.
+        let data =
+            b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10";
+        let reader = Reader::new(&data[..]);
+        assert!(Builder.try_build_from(reader).is_ok());
     }
 }
