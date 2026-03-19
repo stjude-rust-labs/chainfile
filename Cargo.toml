@@ -21,6 +21,7 @@ rand = { version = "0.8.5", optional = true }
 regex = "1.11.1"
 reqwest = { version = "0.12.12", features = ["blocking"], optional = true }
 rust-lapper = "1.1.0"
+thiserror = "2.0.18"
 tempdir = { version = "0.3.7", optional = true }
 tracing = { version = "0.1.40", optional = true }
 tracing-log = "0.2.0"

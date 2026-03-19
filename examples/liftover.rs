@@ -22,9 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let results = machine.liftover(interval);
 
     match results {
-        Some(results) => {
-            for result in results {
-                println!("{result}");
+        Some(chains) => {
+            for chain_liftover in chains {
+                println!("chain {} (score {})", chain_liftover.chain().id(), chain_liftover.chain().score());
+                for segment in chain_liftover.segments() {
+                    println!("  {segment}");
+                }
             }
         }
         None => println!("Does not exist in new genome"),
