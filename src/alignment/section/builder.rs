@@ -1,6 +1,7 @@
 //! Builders for an alignment section.
 
 use nonempty::NonEmpty;
+use thiserror::Error;
 
 use crate::alignment::Section;
 use crate::alignment::section::data;
@@ -8,65 +9,38 @@ use crate::alignment::section::header;
 
 /// An error that occurs when a required field was never provided to the
 /// [`Builder`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MissingError {
     /// No data was provided to the [`Builder`].
+    #[error("data")]
     Data,
 
     /// No header was provided to the [`Builder`].
+    #[error("header")]
     Header,
 }
-
-impl std::fmt::Display for MissingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MissingError::Data => write!(f, "data"),
-            MissingError::Header => write!(f, "header"),
-        }
-    }
-}
-
-impl std::error::Error for MissingError {}
 
 /// An error that occurs when a singular field was provided multiple times to
 /// the [`Builder`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum MultipleError {
     /// The header field was provided multiple times to the [`Builder`].
+    #[error("header")]
     Header,
 }
 
-impl std::fmt::Display for MultipleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MultipleError::Header => write!(f, "header"),
-        }
-    }
-}
-
-impl std::error::Error for MultipleError {}
-
 /// An error related to a [`Builder`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An error where a required field was never provided to the [`Builder`].
+    #[error("missing required field: {0}")]
     Missing(MissingError),
 
     /// An error where a singular field was provided to the [`Builder`] more
     /// than once.
+    #[error("singular field set multiple times: {0}")]
     Multiple(MultipleError),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Missing(err) => write!(f, "missing required field: {err}"),
-            Error::Multiple(err) => write!(f, "singular field set multiple times: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;

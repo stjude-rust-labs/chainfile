@@ -7,15 +7,14 @@ use omics::coordinate::Contig;
 use omics::coordinate::Strand;
 use omics::coordinate::position::Number;
 use rust_lapper as lapper;
-
 use thiserror::Error;
 
-use crate::alignment;
-use crate::alignment::section::header::Record as Header;
-use crate::liftover;
 use super::AnnotatedPair;
 use super::ChromosomeDictionary;
 use super::Machine;
+use crate::alignment;
+use crate::alignment::section::header::Record as Header;
+use crate::liftover;
 use crate::reader;
 
 /// The inner value of the liftover lookup data structure.
@@ -34,7 +33,8 @@ pub enum Error {
 
     /// Two chain sections share the same ID but have different headers.
     #[error(
-        "duplicate chain id `{id}` with inconsistent headers: expected `{expected}`, found `{found}`"
+        "duplicate chain id `{id}` with inconsistent headers: expected `{expected}`, found \
+         `{found}`"
     )]
     DuplicateChainId {
         /// The chain ID.
@@ -188,9 +188,8 @@ impl ChromosomeDictionaryBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::Reader;
-
     use super::*;
+    use crate::Reader;
 
     #[test]
     fn duplicate_chain_id_with_inconsistent_headers() {

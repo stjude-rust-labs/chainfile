@@ -1,5 +1,7 @@
 //! A line within a chain file.
 
+use thiserror::Error;
+
 use crate::alignment::section::data;
 use crate::alignment::section::data::Record as AlignmentDataRecord;
 use crate::alignment::section::header;
@@ -7,9 +9,10 @@ use crate::alignment::section::header::HEADER_PREFIX;
 use crate::alignment::section::header::Record as HeaderRecord;
 
 /// An error associated with parsing the chain file.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An invalid header record.
+    #[error("invalid header record: {inner}\n\nline: `{line}`")]
     InvalidHeaderRecord {
         /// The inner error.
         inner: header::Error,
@@ -19,6 +22,7 @@ pub enum Error {
     },
 
     /// An invalid alignment data record.
+    #[error("invalid alignment data record: {inner}\n\nline: `{line}`")]
     InvalidAlignmentDataRecord {
         /// The inner error.
         inner: data::Error,
@@ -27,24 +31,6 @@ pub enum Error {
         line: String,
     },
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidHeaderRecord { inner, line } => {
-                write!(f, "invalid header record: {inner}\n\nline: `{line}`")
-            }
-            Error::InvalidAlignmentDataRecord { inner, line } => {
-                write!(
-                    f,
-                    "invalid alignment data record: {inner}\n\nline: `{line}`"
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A line within a chain file.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -4,6 +4,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use omics::coordinate::position::Number;
+use thiserror::Error;
 
 use crate::alignment::section::data::record::Kind;
 
@@ -23,83 +24,52 @@ pub const NUM_ALIGNMENT_DATA_FIELDS_TERMINATING: usize = 1;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// An error related to the parsing of an alignment data record.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParseError {
     /// An incorrect number of fields in the alignment data line.
+    #[error(
+        "invalid number of fields in alignment data: expected \
+         {NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING} (non-terminating) or \
+         {NUM_ALIGNMENT_DATA_FIELDS_TERMINATING} (terminating) fields, found {0} fields"
+    )]
     IncorrectNumberOfFields(usize),
 
     /// An invalid size.
+    #[error("invalid size: {0}")]
     InvalidSize(ParseIntError),
 
     /// An invalid dt.
+    #[error("invalid dt: {0}")]
     InvalidDt(ParseIntError),
 
     /// An invalid dq.
+    #[error("invalid dq: {0}")]
     InvalidDq(ParseIntError),
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::IncorrectNumberOfFields(n) => write!(
-                f,
-                "invalid number of fields in alignment data: expected \
-                 {NUM_ALIGNMENT_DATA_FIELDS_NONTERMINATING} (non-terminating) or \
-                 {NUM_ALIGNMENT_DATA_FIELDS_TERMINATING} (terminating) fields, found {n} fields"
-            ),
-            ParseError::InvalidSize(err) => write!(f, "invalid size: {err}"),
-            ParseError::InvalidDt(err) => write!(f, "invalid dt: {err}"),
-            ParseError::InvalidDq(err) => write!(f, "invalid dq: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
-
 /// An error related to a [`Record`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An invalid dt value for a non-terminating alignment data line.
+    #[error("expected value for dt in non-terminating alignment data line, found no value")]
     InvalidNonTerminatingDt,
 
     /// An invalid dq value for a non-terminating alignment data line.
+    #[error("expected value for dq in non-terminating alignment data line, found no value")]
     InvalidNonTerminatingDq,
 
     /// An invalid dt value for a terminating alignment data line.
+    #[error("expected no value for dt in terminating alignment data line, found value")]
     InvalidTerminatingDt,
 
     /// An invalid dq value for a terminating alignment data line.
+    #[error("expected no value for dq in terminating alignment data line, found value")]
     InvalidTerminatingDq,
 
     /// A parse error.
+    #[error("parse error: {0}")]
     Parse(ParseError),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidNonTerminatingDt => write!(
-                f,
-                "expected value for dt in non-terminating alignment data line, found no value"
-            ),
-            Error::InvalidNonTerminatingDq => write!(
-                f,
-                "expected value for dq in non-terminating alignment data line, found no value"
-            ),
-            Error::InvalidTerminatingDt => write!(
-                f,
-                "expected no value for dt in terminating alignment data line, found value"
-            ),
-            Error::InvalidTerminatingDq => write!(
-                f,
-                "expected no value for dq in terminating alignment data line, found value"
-            ),
-            Error::Parse(err) => write!(f, "parse error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A [`Result`](std::result::Result) with an [`Error`].
 type Result<T> = std::result::Result<T, Error>;

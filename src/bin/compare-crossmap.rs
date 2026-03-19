@@ -622,19 +622,27 @@ fn throw(args: &Args) -> Result<()> {
             .map(|mut results| {
                 assert!(
                     results.len() == 1,
-                    "single valued inputs should only ever produce one output contiguous interval \
-                     pair"
+                    "single valued inputs should only ever produce one liftover result"
                 );
 
                 // SAFETY: we just asserted that the length is one, so this will
                 // always unwrap.
                 let result = results.pop().unwrap();
+                let mut segments = result.into_segments();
                 assert!(
-                    result.reference().strand() == Strand::Positive,
+                    segments.len() == 1,
+                    "single valued inputs should only ever produce one segment"
+                );
+
+                // SAFETY: we just asserted that the length is one, so this will
+                // always unwrap.
+                let segment = segments.pop().unwrap();
+                assert!(
+                    segment.reference().strand() == Strand::Positive,
                     "strand should always be positive for reference"
                 );
 
-                let query = result.into_query();
+                let query = segment.into_query();
 
                 // NOTE: `CrossMap` always reports the results on the positive
                 // strand. This alters how the nucleotide is represented as a
@@ -673,109 +681,109 @@ fn throw(args: &Args) -> Result<()> {
          {total_comparisons})"
     );
 
-    if args.explore_mismatches.is_some() && !mismatches.is_empty() {
-        let sections = File::open(&chain_file_path)
-            .map(GzDecoder::new)
-            .map(BufReader::new)
-            .map(chainfile::Reader::new)?
-            .sections()
-            .collect::<Result<Vec<_>, _>>()
-            .context("rereading the chainfile sections")?
-            .into_iter()
-            .map(|section| {
-                section
-                    .reference_sequence()
-                    .interval()
-                    .map(|interval| (section, interval))
-            })
-            .collect::<Result<Vec<_>, sequence::Error>>()
-            .context("creating intervals from chainfile")?;
+    if let Some(take_n_mismatches) = args.explore_mismatches {
+        if !mismatches.is_empty() {
+            let sections = File::open(&chain_file_path)
+                .map(GzDecoder::new)
+                .map(BufReader::new)
+                .map(chainfile::Reader::new)?
+                .sections()
+                .collect::<Result<Vec<_>, _>>()
+                .context("rereading the chainfile sections")?
+                .into_iter()
+                .map(|section| {
+                    section
+                        .reference_sequence()
+                        .interval()
+                        .map(|interval| (section, interval))
+                })
+                .collect::<Result<Vec<_>, sequence::Error>>()
+                .context("creating intervals from chainfile")?;
 
-        // SAFETY: we just checked about that this is [`Some`] in the `if`
-        // statement, so this will always unwrap.
-        let take_n_mismatches = args.explore_mismatches.unwrap();
+            for (i, comparison) in mismatches.into_iter().enumerate().take(take_n_mismatches) {
+                warn!("== unmatched example #{} ==", i + 1);
+                warn!("reference: {}", comparison.from());
+                warn!("chainfile: {}", comparison.chainfile());
+                warn!("crossmap:  {}", comparison.crossmap());
+                warn!("  ↳ relevant alignment sections:");
 
-        for (i, comparison) in mismatches.into_iter().enumerate().take(take_n_mismatches) {
-            warn!("== unmatched example #{} ==", i + 1);
-            warn!("reference: {}", comparison.from());
-            warn!("chainfile: {}", comparison.chainfile());
-            warn!("crossmap:  {}", comparison.crossmap());
-            warn!("  ↳ relevant alignment sections:");
+                let coordinate = comparison
+                    .from()
+                    .clone()
+                    .into_coordinate(Strand::Positive)
+                    .nudge_forward()
+                    .unwrap();
 
-            let coordinate = comparison
-                .from()
-                .clone()
-                .into_coordinate(Strand::Positive)
-                .nudge_forward()
-                .unwrap();
+                for (section, interval) in &sections {
+                    if interval.contains_entity(&coordinate) {
+                        warn!("    ↳ {}", section.header());
 
-            for (section, interval) in &sections {
-                if interval.contains_entity(&coordinate) {
-                    warn!("    ↳ {}", section.header());
+                        for result in section.stepthrough().expect("step-through to be created") {
+                            let pairs = result?;
 
-                    for result in section.stepthrough().expect("step-through to be created") {
-                        let pairs = result?;
+                            if pairs.reference().contains_entity(&coordinate) {
+                                warn!("      ↳ {}", pairs);
 
-                        if pairs.reference().contains_entity(&coordinate) {
-                            warn!("      ↳ {}", pairs);
+                                let query = pairs.into_query();
+                                if query.strand() == Strand::Negative {
+                                    // (1) Find the size of the chromosome the query
+                                    // sits on.
+                                    let (_, size) = query_contigs
+                                        .chromosomes
+                                        .iter()
+                                        .find(|(chromosome, _)| {
+                                            chromosome == query.contig().as_str()
+                                        })
+                                        .expect("this should be found");
 
-                            let query = pairs.into_query();
-                            if query.strand() == Strand::Negative {
-                                // (1) Find the size of the chromosome the query
-                                // sits on.
-                                let (_, size) = query_contigs
-                                    .chromosomes
-                                    .iter()
-                                    .find(|(chromosome, _)| chromosome == query.contig().as_str())
-                                    .expect("this should be found");
+                                    // (2) Grab the existing coordinate parts.
+                                    let (old_start, old_end) = query.into_coordinates();
+                                    let (old_start_contig, old_start_strand, old_start_pos) =
+                                        old_start.into_parts();
+                                    let (old_end_contig, old_end_strand, old_end_pos) =
+                                        old_end.into_parts();
 
-                                // (2) Grab the existing coordinate parts.
-                                let (old_start, old_end) = query.into_coordinates();
-                                let (old_start_contig, old_start_strand, old_start_pos) =
-                                    old_start.into_parts();
-                                let (old_end_contig, old_end_strand, old_end_pos) =
-                                    old_end.into_parts();
+                                    // (3) Invert them using the current chromosome
+                                    // size.
 
-                                // (3) Invert them using the current chromosome
-                                // size.
+                                    // SAFETY: this should always unwrap, as we
+                                    // constructed this coordinate on the opposite
+                                    // strand successfully (and none of the
+                                    // operations here should cause it to not
+                                    // construct—unless, of course, there is a bug).
+                                    let new_start = Coordinate::<Interbase>::new(
+                                        old_start_contig,
+                                        old_start_strand.complement(),
+                                        *size as Number - old_start_pos.get(),
+                                    );
 
-                                // SAFETY: this should always unwrap, as we
-                                // constructed this coordinate on the opposite
-                                // strand successfully (and none of the
-                                // operations here should cause it to not
-                                // construct—unless, of course, there is a bug).
-                                let new_start = Coordinate::<Interbase>::new(
-                                    old_start_contig,
-                                    old_start_strand.complement(),
-                                    *size as Number - old_start_pos.get(),
-                                );
+                                    // SAFETY: this should always unwrap, as we
+                                    // constructed this coordinate on the opposite
+                                    // strand successfully (and none of the
+                                    // operations here should cause it to not
+                                    // construct—unless, of course, there is a bug).
+                                    let new_end = Coordinate::<Interbase>::new(
+                                        old_end_contig,
+                                        old_end_strand.complement(),
+                                        *size as Number - old_end_pos.get(),
+                                    );
 
-                                // SAFETY: this should always unwrap, as we
-                                // constructed this coordinate on the opposite
-                                // strand successfully (and none of the
-                                // operations here should cause it to not
-                                // construct—unless, of course, there is a bug).
-                                let new_end = Coordinate::<Interbase>::new(
-                                    old_end_contig,
-                                    old_end_strand.complement(),
-                                    *size as Number - old_end_pos.get(),
-                                );
-
-                                // SAFETY: this should always unwrap, as we
-                                // constructed this interval on the opposite
-                                // strand successfully (and none of the
-                                // operations here should cause it to not
-                                // construct—unless, of course, there is a bug).
-                                let interval = Interval::try_new(new_start, new_end).unwrap();
-                                warn!("        ↳ in other words, {}", interval);
-                            }
-                        };
+                                    // SAFETY: this should always unwrap, as we
+                                    // constructed this interval on the opposite
+                                    // strand successfully (and none of the
+                                    // operations here should cause it to not
+                                    // construct—unless, of course, there is a bug).
+                                    let interval = Interval::try_new(new_start, new_end).unwrap();
+                                    warn!("        ↳ in other words, {}", interval);
+                                }
+                            };
+                        }
                     }
                 }
-            }
 
-            if i < take_n_mismatches - 1 {
-                warn!("");
+                if i < take_n_mismatches - 1 {
+                    warn!("");
+                }
             }
         }
     }

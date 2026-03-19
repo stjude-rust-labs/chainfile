@@ -8,6 +8,7 @@ use omics::coordinate;
 use omics::coordinate::interbase::Coordinate;
 use omics::coordinate::interval::interbase::Interval;
 use omics::coordinate::position::Number;
+use thiserror::Error;
 use tracing_log::log::warn;
 
 use crate::alignment::Section;
@@ -19,50 +20,30 @@ use crate::liftover::stepthrough::interval_pair::ContiguousIntervalPair;
 pub mod interval_pair;
 
 /// An error related to stepping through liftover segments.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// When stepping through the interval step through, moving the coordinates
     /// returned `None`, which indicates there was an out of bounds somewhere.
+    #[error("interval stepthrough out of bounds: moving {0} from {1} by {2}")]
     IntervalStepthroughOutOfBounds(String, Coordinate, Number),
 
     /// An interval error.
+    #[error("interval error: {0}")]
     Interval(coordinate::interval::Error),
 
     /// An error occurred when constructing a [`ContiguousIntervalPair`].
+    #[error("invalid interval pair: {0}")]
     InvalidIntervalPair(interval_pair::Error),
 
     /// The data section does not cumulative add up the specified end
     /// coordinates. This indicates a malformed data section.
+    #[error("misaligned data section, which indicates a malformed chain file")]
     MisalignedDataSection,
 
     /// A sequence error.
+    #[error("sequence error: {0}")]
     Sequence(sequence::Error),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::IntervalStepthroughOutOfBounds(name, coordinate, magnitude) => {
-                write!(
-                    f,
-                    "interval stepthrough out of bounds: moving {name} from {coordinate} by \
-                     {magnitude}"
-                )
-            }
-            Error::Interval(err) => write!(f, "interval error: {err}"),
-            Error::InvalidIntervalPair(err) => {
-                write!(f, "invalid interval pair: {err}")
-            }
-            Error::MisalignedDataSection => write!(
-                f,
-                "misaligned data section, which indicates a malformed chain file"
-            ),
-            Error::Sequence(err) => write!(f, "sequence error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// The core struct using for stepping through contiguous liftover segments.
 pub struct StepThroughWithData {

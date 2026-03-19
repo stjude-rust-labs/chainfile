@@ -107,7 +107,11 @@
 //!
 //! let interval = "seq0:+:3-4".parse::<Interval>()?;
 //! for chain_liftover in machine.liftover(interval).unwrap() {
-//!     println!("chain {} (score {})", chain_liftover.chain().id(), chain_liftover.chain().score());
+//!     println!(
+//!         "chain {} (score {})",
+//!         chain_liftover.chain().id(),
+//!         chain_liftover.chain().score()
+//!     );
 //!     for segment in chain_liftover.segments() {
 //!         println!("  {} -> {}", segment.reference(), segment.query());
 //!     }

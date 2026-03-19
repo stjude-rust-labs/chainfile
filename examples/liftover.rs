@@ -24,7 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match results {
         Some(chains) => {
             for chain_liftover in chains {
-                println!("chain {} (score {})", chain_liftover.chain().id(), chain_liftover.chain().score());
+                println!(
+                    "chain {} (score {})",
+                    chain_liftover.chain().id(),
+                    chain_liftover.chain().score()
+                );
                 for segment in chain_liftover.segments() {
                     println!("  {segment}");
                 }

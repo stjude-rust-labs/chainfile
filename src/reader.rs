@@ -4,6 +4,8 @@ use std::io::BufRead;
 use std::io::{self};
 use std::iter;
 
+use thiserror::Error;
+
 use crate::Line;
 use crate::alignment::section::Sections;
 use crate::line;
@@ -15,25 +17,16 @@ const NEW_LINE: char = '\n';
 const CARRIAGE_RETURN: char = '\r';
 
 /// An error related to a [`Reader`].
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// An I/O error.
+    #[error("i/o error: {0}")]
     Io(io::Error),
 
     /// A line error.
+    #[error("line error: {0}")]
     Line(line::Error),
 }
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Io(err) => write!(f, "i/o error: {err}"),
-            Error::Line(err) => write!(f, "line error: {err}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 /// A chain file reader.
 #[derive(Clone, Debug)]

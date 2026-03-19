@@ -129,19 +129,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for segment in chain_result.into_segments() {
                 let query_strand = segment.query().strand();
 
-                let query_sequence = query
-                    .get(segment.query().contig().as_str())
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "query FASTA did not contain necessary contig \"{}\": are the FASTA \
-                             files and chain file correct?",
-                            segment.query().contig()
-                        )
-                    });
+                let query_sequence =
+                    query
+                        .get(segment.query().contig().as_str())
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "query FASTA did not contain necessary contig \"{}\": are the \
+                                 FASTA files and chain file correct?",
+                                segment.query().contig()
+                            )
+                        });
 
                 let (reference_interval, query_interval) = segment.into_parts();
-                let reference =
-                    get_sequence_for_interval(reference_sequence, reference_interval);
+                let reference = get_sequence_for_interval(reference_sequence, reference_interval);
                 let query = get_sequence_for_interval(query_sequence, query_interval);
 
                 assert_eq!(reference.len(), query.len());
