@@ -553,7 +553,7 @@ struct Args {
     explore_mismatches: Option<usize>,
 
     /// The number of positions to generate.
-    #[arg(short, default_value_t = 1_000_000)]
+    #[arg(short, default_value_t = 100_000_000)]
     n: usize,
 
     #[command(flatten)]
