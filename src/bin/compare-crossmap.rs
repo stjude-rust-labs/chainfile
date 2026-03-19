@@ -619,23 +619,19 @@ fn throw(args: &Args) -> Result<()> {
 
         let chainfile_result = machine
             .liftover(from_interval)
-            .map(|mut results| {
-                assert!(
-                    results.len() == 1,
-                    "single valued inputs should only ever produce one liftover result"
-                );
+            .and_then(|results| {
+                // Select the result from the highest-scoring chain.
+                let result = results
+                    .into_iter()
+                    .max_by_key(|r| r.chain().score())?;
 
-                // SAFETY: we just asserted that the length is one, so this will
-                // always unwrap.
-                let result = results.pop().unwrap();
                 let mut segments = result.into_segments();
                 assert!(
                     segments.len() == 1,
-                    "single valued inputs should only ever produce one segment"
+                    "single-position queries should only ever produce one segment"
                 );
 
-                // SAFETY: we just asserted that the length is one, so this will
-                // always unwrap.
+                // SAFETY: we just asserted that the length is one.
                 let segment = segments.pop().unwrap();
                 assert!(
                     segment.reference().strand() == Strand::Positive,
@@ -656,12 +652,10 @@ fn throw(args: &Args) -> Result<()> {
 
                 let (contig, _, position) = query.into_start().into_parts();
 
-                LiftoverResult::Mapped(BedEntry::new_single_position(
+                Some(LiftoverResult::Mapped(BedEntry::new_single_position(
                     contig.into_inner(),
-                    // SAFETY: this should always unwrap, as the lower bound isn't
-                    // going to be used in this kind of thing.
                     position.get() as Number,
-                ))
+                )))
             })
             .unwrap_or(LiftoverResult::Unmapped);
 
