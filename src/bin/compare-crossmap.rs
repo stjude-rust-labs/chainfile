@@ -581,12 +581,17 @@ fn throw(args: &Args) -> Result<()> {
         .download_chain_file(&chain_name)
         .with_context(|| format!("chain file: downloading {}", &chain_name.name()))?;
 
+    let chainfile_load_start = std::time::Instant::now();
+
     let chain = File::open(&chain_file_path)
         .map(GzDecoder::new)
         .map(BufReader::new)
         .map(chainfile::Reader::new)?;
 
     let machine = liftover::machine::builder::Builder.try_build_from(chain)?;
+
+    let chainfile_load_elapsed = chainfile_load_start.elapsed();
+    info!("chainfile: chain file loaded in {chainfile_load_elapsed:.2?}");
     let query_contigs =
         Chromosomes::new(machine.query_chromosomes(), args.canonical_chromosomes_only);
     let mut reference_contigs = Chromosomes::new(
@@ -607,10 +612,18 @@ fn throw(args: &Args) -> Result<()> {
 
     let mut comparisons = Vec::new();
 
+    let crossmap_start = std::time::Instant::now();
+
     info!("crossmap: running liftover");
-    for (from, crossmap_result) in CrossMap::run_bed(&chain_file_path, &work_dir.input_bed_file())
-        .context("getting the `CrossMap` mappings")?
-    {
+    let crossmap_results = CrossMap::run_bed(&chain_file_path, &work_dir.input_bed_file())
+        .context("getting the `CrossMap` mappings")?;
+
+    let crossmap_elapsed = crossmap_start.elapsed();
+    info!("crossmap: liftover completed in {crossmap_elapsed:.2?}");
+
+    let chainfile_liftover_start = std::time::Instant::now();
+
+    for (from, crossmap_result) in crossmap_results {
         let start =
             Coordinate::<Interbase>::new(from.contig.as_str(), Strand::Positive, from.start);
         let end = Coordinate::<Interbase>::new(from.contig.as_str(), Strand::Positive, from.end);
@@ -659,6 +672,12 @@ fn throw(args: &Args) -> Result<()> {
 
         comparisons.push(Comparison::new(from, chainfile_result, crossmap_result));
     }
+
+    let chainfile_liftover_elapsed = chainfile_liftover_start.elapsed();
+    info!("chainfile: liftover completed in {chainfile_liftover_elapsed:.2?}");
+
+    let chainfile_total = chainfile_load_elapsed + chainfile_liftover_elapsed;
+    info!("chainfile: total (load + liftover) in {chainfile_total:.2?}");
 
     let total_comparisons = comparisons.len();
     let mismatches = comparisons
