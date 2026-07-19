@@ -42,7 +42,6 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 use regex::Regex;
 use tempdir::TempDir;
-use tracing::error;
 use tracing::info;
 use tracing::warn;
 use tracing_log::AsTrace as _;
@@ -446,19 +445,15 @@ impl WorkDirectory {
 
         info!("chain file: dowloading {url}");
 
-        let mut out = File::create(&filepath).context("creating new chain file file")?;
-        let resp = reqwest::blocking::get(url).context("downloading chain file")?;
+        let resp = reqwest::blocking::get(url)
+            .context("downloading chain file")?
+            .error_for_status()
+            .context("chain file download returned an error status")?;
+        let bytes = resp.bytes().context("parsing chain file bytes")?;
 
-        if resp.status().is_success() {
-            let bytes = resp.bytes().context("parsing chain file bytes")?;
-            std::io::copy(&mut bytes.as_ref(), &mut out).context("writing chain file to disk")?;
-            info!("chain file: download completed");
-        } else {
-            error!(
-                "chain file: download failed with status `{}`",
-                resp.status()
-            );
-        }
+        let mut out = File::create(&filepath).context("creating new chain file")?;
+        std::io::copy(&mut bytes.as_ref(), &mut out).context("writing chain file to disk")?;
+        info!("chain file: download completed");
 
         Ok(filepath)
     }
@@ -580,7 +575,7 @@ fn throw(args: &Args) -> Result<()> {
 
     let chain_file_path = work_dir
         .download_chain_file(&chain_name)
-        .with_context(|| format!("chain file: downloading {}", &chain_name.name()))?;
+        .with_context(|| format!("chain file: downloading {}", chain_name.name()))?;
 
     let chainfile_load_start = std::time::Instant::now();
 
