@@ -7,6 +7,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Unreleased
 
+### Changed
+
+- The minimum supported Rust version is now 1.86.0 to support current
+  transitive dependency releases.
+
 ### Fixed
 
 - Malformed step-through iterators now terminate after reporting a data-section
@@ -17,7 +22,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   sizes.
 - The `compare-crossmap` binary now returns an error for failed chain-file
   downloads without caching an empty file.
-- The documented minimum supported Rust version now matches `Cargo.toml`.
 
 ## 0.4.0 — 03-19-2026
 
