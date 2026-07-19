@@ -51,6 +51,10 @@ pub enum Error {
     /// The start position is greater than the end position.
     #[error("start position greater than end position")]
     StartPositionGreaterThanEndPosition,
+
+    /// The alignment end position exceeds the chromosome size.
+    #[error("end position `{0}` exceeds chromosome size `{1}`")]
+    EndPositionExceedsChromosomeSize(Number, Number),
 }
 
 /// A [`Result`](std::result::Result) with an [`Error`].
@@ -98,6 +102,12 @@ impl Sequence {
     ///
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a numeric field or strand cannot be parsed, the
+    /// alignment start exceeds its end, or the alignment end exceeds the
+    /// chromosome size.
     pub fn try_from_str_parts(
         chromosome_name: &str,
         chromosome_size: &str,
@@ -125,6 +135,13 @@ impl Sequence {
 
         if alignment_start > alignment_end {
             return Err(Error::StartPositionGreaterThanEndPosition);
+        }
+
+        if alignment_end > chromosome_size {
+            return Err(Error::EndPositionExceedsChromosomeSize(
+                alignment_end,
+                chromosome_size,
+            ));
         }
 
         Ok(Self {
@@ -360,6 +377,17 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "parse error: invalid alignment end: invalid digit found in string"
+        );
+    }
+
+    #[test]
+    fn alignment_end_exceeds_chromosome_size() {
+        let err = Sequence::try_from_str_parts("seq0", "2", "-", "0", "3").unwrap_err();
+
+        assert!(matches!(err, Error::EndPositionExceedsChromosomeSize(3, 2)));
+        assert_eq!(
+            err.to_string(),
+            "end position `3` exceeds chromosome size `2`"
         );
     }
 
