@@ -90,7 +90,7 @@ cargo +nightly fmt --check
 
 ## Minimum Supported Rust Version (MSRV)
 
-This crate is designed to work with Rust version 1.85.0 or later. It may, by
+This crate is designed to work with Rust version 1.86.0 or later. It may, by
 happenstance, work with earlier versions of Rust.
 
 ## 🤝 Contributing
