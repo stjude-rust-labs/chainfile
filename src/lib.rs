@@ -28,8 +28,8 @@
 //! mapping can be tricky, especially considering gotchas such as coordinates on
 //! the reverse strand being stored as the reverse complement of the sequence.
 //! Instead of computing these yourself, you should use the
-//! [`liftover::StepThrough`] facility that can be obtained from each alignment
-//! data section via
+//! [`liftover::stepthrough::StepThrough`] facility that can be obtained from
+//! each alignment data section via
 //! [`Section::stepthrough()`](crate::alignment::Section::stepthrough).
 //!
 //! Iterating over this stepthrough provides a series of
