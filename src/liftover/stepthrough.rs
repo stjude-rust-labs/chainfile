@@ -110,6 +110,8 @@ impl StepThroughWithData {
     /// we expect when the stepthrough is finished. If they don't, an error is
     /// thrown.
     fn finish(&mut self) -> Result<(), Error> {
+        self.finished = true;
+
         if self.reference_pointer != self.expected_reference_end {
             return Err(Error::MisalignedDataSection);
         }
@@ -117,8 +119,6 @@ impl StepThroughWithData {
         if self.query_pointer != self.expected_query_end {
             return Err(Error::MisalignedDataSection);
         }
-
-        self.finished = true;
 
         Ok(())
     }
@@ -136,6 +136,10 @@ impl Iterator for StepThroughWithData {
     type Item = Result<(ContiguousIntervalPair, data::Record), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
         let chunk = match self.data.next() {
             Some(c) => c,
             None => match self.finish() {
@@ -355,6 +359,7 @@ mod tests {
             err.to_string(),
             String::from("misaligned data section, which indicates a malformed chain file")
         );
+        assert!(stepthrough.next().is_none());
 
         Ok(())
     }
