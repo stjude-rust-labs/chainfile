@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Malformed step-through iterators now terminate after reporting a data-section
+  alignment error.
+- Sequence construction now rejects alignment endpoints beyond the chromosome
+  size.
+- Liftover machine construction now returns an error for conflicting chromosome
+  sizes.
+- The `compare-crossmap` binary now returns an error for failed chain-file
+  downloads without caching an empty file.
+- The documented minimum supported Rust version now matches `Cargo.toml`.
+
 ## 0.4.0 — 03-19-2026
 
 ### Added
