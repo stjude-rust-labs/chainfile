@@ -187,29 +187,23 @@ impl FromStr for Record {
             .map_err(|err| Error::Parse(ParseError::InvalidScore(err)))?;
         let reference_sequence =
             Sequence::try_from_str_parts(parts[2], parts[3], parts[4], parts[5], parts[6])
-                .map_err(|err| Error::Parse(ParseError::InvalidReferenceSequence(err)))?;
+                .map_err(|err| match err {
+                    sequence::Error::EndPositionExceedsChromosomeSize(end, size) => Error::Parse(
+                        ParseError::EndPositionExceedsSize(parts[2].to_string(), end, size),
+                    ),
+                    err => Error::Parse(ParseError::InvalidReferenceSequence(err)),
+                })?;
         let query_sequence =
             Sequence::try_from_str_parts(parts[7], parts[8], parts[9], parts[10], parts[11])
-                .map_err(|err| Error::Parse(ParseError::InvalidQuerySequence(err)))?;
+                .map_err(|err| match err {
+                    sequence::Error::EndPositionExceedsChromosomeSize(end, size) => Error::Parse(
+                        ParseError::EndPositionExceedsSize(parts[7].to_string(), end, size),
+                    ),
+                    err => Error::Parse(ParseError::InvalidQuerySequence(err)),
+                })?;
         let id = parts[12]
             .parse()
             .map_err(|err| Error::Parse(ParseError::InvalidId(err)))?;
-
-        if reference_sequence.chromosome_size() < reference_sequence.alignment_end() {
-            return Err(Error::Parse(ParseError::EndPositionExceedsSize(
-                reference_sequence.chromosome_name().to_string(),
-                reference_sequence.alignment_end(),
-                reference_sequence.chromosome_size(),
-            )));
-        }
-
-        if query_sequence.chromosome_size() < query_sequence.alignment_end() {
-            return Err(Error::Parse(ParseError::EndPositionExceedsSize(
-                query_sequence.chromosome_name().to_string(),
-                query_sequence.alignment_end(),
-                query_sequence.chromosome_size(),
-            )));
-        }
 
         Ok(Record {
             score,
