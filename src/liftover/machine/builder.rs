@@ -47,6 +47,19 @@ pub enum Error {
         /// The conflicting header encountered for this chain ID.
         found: Header,
     },
+
+    /// Two chain sections report different sizes for the same chromosome.
+    #[error("conflicting sizes for chromosome `{contig}`: expected `{expected}`, found `{found}`")]
+    ConflictingChromosomeSize {
+        /// The chromosome name.
+        contig: String,
+
+        /// The first chromosome size encountered.
+        expected: Number,
+
+        /// The conflicting chromosome size.
+        found: Number,
+    },
 }
 
 /// A [`Result`](std::result::Result) with an [`Error`].
@@ -103,11 +116,11 @@ impl Builder {
             query_chromosomes.update(
                 header.query_sequence().chromosome_name().to_string(),
                 header.query_sequence().chromosome_size(),
-            );
+            )?;
             reference_chromosomes.update(
                 header.reference_sequence().chromosome_name().to_string(),
                 header.reference_sequence().chromosome_size(),
-            );
+            )?;
 
             let contig = Contig::new_unchecked(header.reference_sequence().chromosome_name());
             let entry = hm.entry(contig).or_default();
@@ -171,19 +184,33 @@ impl Default for Builder {
 struct ChromosomeDictionaryBuilder(ChromosomeDictionary);
 
 impl ChromosomeDictionaryBuilder {
-    /// Updates the contig builder with the current start and end.
-    fn update(&mut self, contig: String, size: Number) {
+    /// Updates the chromosome dictionary with a contig and its size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::ConflictingChromosomeSize`] when the dictionary already
+    /// contains the contig with a different size.
+    #[expect(
+        clippy::result_large_err,
+        reason = "`Error` retains the conflicting chain headers"
+    )]
+    fn update(&mut self, contig: String, size: Number) -> Result<()> {
         match self.0.get(&contig) {
             Some(existing) => {
-                assert!(
-                    *existing == size,
-                    "the current size conflicts with the previously set size"
-                );
+                if *existing != size {
+                    return Err(Error::ConflictingChromosomeSize {
+                        contig,
+                        expected: *existing,
+                        found: size,
+                    });
+                }
             }
             None => {
                 self.0.insert(contig, size);
             }
         }
+
+        Ok(())
     }
 
     /// Consumes `self` and returns the built [`ChromosomeDictionary`].
@@ -218,5 +245,41 @@ mod tests {
             b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10";
         let reader = Reader::new(&data[..]);
         assert!(Builder.try_build_from(reader).is_ok());
+    }
+
+    #[test]
+    fn conflicting_reference_chromosome_sizes() {
+        let data = b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 50 seq0 11 + 0 11 seq2 11 + 0 11 1\n11";
+        let reader = Reader::new(&data[..]);
+        let err = Builder.try_build_from(reader).unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::ConflictingChromosomeSize {
+                ref contig,
+                expected: 10,
+                found: 11,
+            } if contig == "seq0"
+        ));
+        assert_eq!(
+            err.to_string(),
+            "conflicting sizes for chromosome `seq0`: expected `10`, found `11`"
+        );
+    }
+
+    #[test]
+    fn conflicting_query_chromosome_sizes() {
+        let data = b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 50 seq2 11 + 0 11 seq1 11 + 0 11 1\n11";
+        let reader = Reader::new(&data[..]);
+        let err = Builder.try_build_from(reader).unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::ConflictingChromosomeSize {
+                ref contig,
+                expected: 10,
+                found: 11,
+            } if contig == "seq1"
+        ));
     }
 }
