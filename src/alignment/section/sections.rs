@@ -73,6 +73,8 @@ enum State {
 
 /// An iterator struct the traverses the alignment sections while keeping
 /// track of the current state of the reader.
+///
+/// The iterator stops after the first error or the end of the input.
 #[derive(Debug)]
 pub struct Sections<'a, T>
 where
@@ -86,6 +88,9 @@ where
 
     /// The line number.
     line_no: usize,
+
+    /// Whether iteration has ended or encountered an error.
+    finished: bool,
 }
 
 impl<'a, T> Sections<'a, T>
@@ -98,6 +103,7 @@ where
             reader,
             state: State::InBetweenSections,
             line_no: 0usize,
+            finished: false,
         }
     }
 }
@@ -109,6 +115,14 @@ where
     type Item = Result<Section>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        // A partially read section cannot be resumed after an error because
+        // its builder is local to this call. Only a complete section allows
+        // iteration to continue.
+        self.finished = true;
         let mut builder: Option<Builder> = None;
         let mut buffer = String::new();
 
@@ -136,7 +150,8 @@ where
                 },
             };
 
-            // (3) Gets the current state and errors out if we encounter a parse error.
+            // (3) Gets the current state and errors out if we encounter a parse
+            // error.
             self.state = match get_state(&self.state, &line, self.line_no) {
                 Ok(s) => s,
                 Err(err) => return Some(Err(err)),
@@ -176,7 +191,10 @@ where
                 State::InBetweenSections => {
                     if let Some(builder) = builder {
                         match builder.try_build() {
-                            Ok(section) => return Some(Ok(section)),
+                            Ok(section) => {
+                                self.finished = false;
+                                return Some(Ok(section));
+                            }
                             Err(err) => return Some(Err(Error::Builder(err))),
                         }
                     }
@@ -228,5 +246,53 @@ fn get_state(last: &State, line: &Line, line_no: usize) -> Result<State> {
                 Kind::Terminating => Ok(State::InBetweenSections),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HEADER: &str = "chain 0 seq0 4 + 0 4 seq0 5 - 0 5 1";
+
+    #[test]
+    fn stops_after_truncated_section() {
+        let input = format!("{HEADER}\n3\t0\t1\n");
+        let mut reader = Reader::new(input.as_bytes());
+        let mut sections = reader.sections();
+
+        assert!(matches!(
+            sections.next(),
+            Some(Err(Error::Parse(ParseError::AbruptEndInSection)))
+        ));
+        assert!(sections.next().is_none());
+        assert!(sections.next().is_none());
+    }
+
+    #[test]
+    fn stops_after_invalid_section() {
+        for invalid in ["", "invalid", HEADER] {
+            let input = format!("{HEADER}\n{invalid}\n3\t0\t1\n1\n");
+            let mut reader = Reader::new(input.as_bytes());
+            let mut sections = reader.sections();
+
+            assert!(sections.next().unwrap().is_err());
+            assert!(sections.next().is_none());
+        }
+    }
+
+    #[test]
+    fn reads_valid_sections_before_error() {
+        let input = format!("{HEADER}\n3\t0\t1\n1\n\n{HEADER}\n3\t0\t1\n1\n\n{HEADER}\n");
+        let mut reader = Reader::new(input.as_bytes());
+        let results = reader.sections().take(4).collect::<Vec<_>>();
+
+        assert_eq!(results.len(), 3);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_ok());
+        assert!(matches!(
+            results[2],
+            Err(Error::Parse(ParseError::AbruptEndInSection))
+        ));
     }
 }

@@ -14,6 +14,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Alignment section iterators now stop after an error instead of repeatedly
+  reporting truncated input or panicking when iteration continues.
 - Malformed step-through iterators now terminate after reporting a data-section
   alignment error.
 - Sequence construction now rejects alignment endpoints beyond the chromosome
