@@ -2,13 +2,15 @@
 
 use std::fs::File;
 use std::io;
-use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
+use std::num::NonZeroUsize;
+use std::panic;
 use std::path::Path;
+use std::thread;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -27,6 +29,9 @@ const GZIP_MAGIC: [u8; 2] = [0x1F, 0x8B];
 /// The capacity of input and output buffers.
 const BUFFER_SIZE: usize = 128 * 1024;
 
+/// A buffered input.
+pub type Input = BufReader<Box<dyn Read + Send>>;
+
 /// Returns whether a path refers to standard input or standard output.
 fn is_stdio(path: &Path) -> bool {
     path.as_os_str() == STDIO
@@ -36,11 +41,13 @@ fn is_stdio(path: &Path) -> bool {
 ///
 /// A path of `-` reads from standard input. Gzip-compressed (including BGZF)
 /// inputs are detected from their contents and decompressed transparently.
-pub fn open_input(path: &Path) -> Result<Box<dyn BufRead>> {
+pub fn open_input(path: &Path) -> Result<Input> {
     debug!(path = %path.display(), "opening input");
 
-    let inner: Box<dyn Read> = if is_stdio(path) {
-        Box::new(io::stdin().lock())
+    // NOTE: standard input is not locked so that the reader can be sent to
+    // another thread.
+    let inner: Box<dyn Read + Send> = if is_stdio(path) {
+        Box::new(io::stdin())
     } else {
         Box::new(File::open(path).with_context(|| format!("opening `{}`", path.display()))?)
     };
@@ -51,7 +58,7 @@ pub fn open_input(path: &Path) -> Result<Box<dyn BufRead>> {
 /// Wraps a reader so that gzip-compressed data is decompressed.
 ///
 /// The bytes consumed while sniffing the format are replayed.
-fn decompress(mut inner: Box<dyn Read>) -> io::Result<Box<dyn BufRead>> {
+fn decompress(mut inner: Box<dyn Read + Send>) -> io::Result<Input> {
     let mut magic = Vec::with_capacity(GZIP_MAGIC.len());
     (&mut inner)
         .take(GZIP_MAGIC.len() as u64)
@@ -59,15 +66,14 @@ fn decompress(mut inner: Box<dyn Read>) -> io::Result<Box<dyn BufRead>> {
 
     let replayed = Cursor::new(magic.clone()).chain(inner);
 
-    if magic == GZIP_MAGIC {
+    let inner: Box<dyn Read + Send> = if magic == GZIP_MAGIC {
         debug!("detected gzip-compressed input");
-        Ok(Box::new(BufReader::with_capacity(
-            BUFFER_SIZE,
-            MultiGzDecoder::new(replayed),
-        )))
+        Box::new(MultiGzDecoder::new(replayed))
     } else {
-        Ok(Box::new(BufReader::with_capacity(BUFFER_SIZE, replayed)))
-    }
+        Box::new(replayed)
+    };
+
+    Ok(BufReader::with_capacity(BUFFER_SIZE, inner))
 }
 
 /// Opens an output for writing.
@@ -95,25 +101,50 @@ pub fn open_output(path: Option<&Path>) -> Result<Box<dyn Write>> {
 }
 
 /// Opens a chain file for reading.
-pub fn open_chain(path: &Path) -> Result<chainfile::Reader<Box<dyn BufRead>>> {
+pub fn open_chain(path: &Path) -> Result<chainfile::Reader<Input>> {
     open_input(path).map(chainfile::Reader::new)
 }
 
-/// Builds a liftover machine from a chain file.
-pub fn load_machine(path: &Path) -> Result<Machine> {
+/// Builds liftover machines from a chain file, one for each worker thread.
+///
+/// The chain file is read once, and the machines are built from it in
+/// parallel.
+///
+/// Each worker thread has its own machine because the contigs within a machine
+/// are reference counted: threads sharing one machine contend on the reference
+/// counts of the same contigs, which is slower than a single thread.
+pub fn load_machines(path: &Path, threads: NonZeroUsize) -> Result<Vec<Machine>> {
     info!(path = %path.display(), "loading chain file");
 
-    let reader = open_chain(path)?;
-    let machine = Builder
-        .try_build_from(reader)
-        .with_context(|| format!("building liftover machine from `{}`", path.display()))?;
+    let mut data = Vec::new();
+    open_input(path)?
+        .read_to_end(&mut data)
+        .with_context(|| format!("reading `{}`", path.display()))?;
+
+    let machines = thread::scope(|scope| {
+        let handles = (0..threads.get())
+            .map(|_| {
+                scope.spawn(|| {
+                    Builder
+                        .try_build_from(chainfile::Reader::new(&data[..]))
+                        .map_err(anyhow::Error::from)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap_or_else(|e| panic::resume_unwind(e)))
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .with_context(|| format!("building liftover machine from `{}`", path.display()))?;
 
     info!(
-        reference_contigs = machine.reference_chromosomes().len(),
+        reference_contigs = machines[0].reference_chromosomes().len(),
         "loaded chain file"
     );
 
-    Ok(machine)
+    Ok(machines)
 }
 
 #[cfg(test)]
@@ -123,7 +154,7 @@ mod tests {
 
     use super::*;
 
-    fn read_all(reader: Box<dyn Read>) -> String {
+    fn read_all(reader: Box<dyn Read + Send>) -> String {
         let mut result = String::new();
         decompress(reader)
             .unwrap()

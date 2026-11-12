@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::io::Write;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -18,9 +19,11 @@ use tracing::info;
 use tracing::trace;
 use tracing::warn;
 
-use crate::io::load_machine;
+use crate::io::load_machines;
 use crate::io::open_input;
 use crate::io::open_output;
+use crate::parallel;
+use crate::parallel::Chunk;
 use crate::sequence::forward_bounds;
 
 /// The index of the strand column (column 6) within the other fields (the
@@ -76,6 +79,11 @@ pub struct Args {
     /// Unmapped records are still written with all of their columns.
     #[arg(long)]
     ignore_bed_plus: bool,
+
+    /// The number of worker threads; defaults to the number of available
+    /// cores.
+    #[arg(short, long)]
+    threads: Option<NonZeroUsize>,
 }
 
 /// The reason a record could not be lifted over.
@@ -115,8 +123,76 @@ struct Segment {
     flipped: bool,
 }
 
+/// Statistics about lifted over records.
+#[derive(Debug, Default)]
+struct Stats {
+    /// The number of records read.
+    records: u64,
+
+    /// The number of records that were lifted over.
+    mapped: u64,
+
+    /// The number of records that could not be lifted over.
+    unmapped: u64,
+
+    /// The number of segments written.
+    segments: u64,
+
+    /// The number of segments that mapped to the opposite strand.
+    flipped: u64,
+
+    /// The number of records that were split into multiple segments.
+    split: u64,
+
+    /// The number of records with columns 7 and beyond.
+    bed_plus: u64,
+
+    /// The number and column count of the first record with columns 7 and
+    /// beyond.
+    first_bed_plus: Option<(u64, usize)>,
+
+    /// The number of records that could not be lifted over for each reason.
+    reasons: BTreeMap<Unmapped, u64>,
+}
+
+/// The output of lifting over a chunk of records.
+#[derive(Debug, Default)]
+struct Output {
+    /// The lifted records.
+    lifted: Vec<u8>,
+
+    /// The unmapped records.
+    unmapped: Vec<u8>,
+
+    /// Statistics about the records.
+    stats: Stats,
+}
+
+/// The state of a worker thread.
+struct Worker<'a> {
+    /// The liftover machine.
+    machine: &'a Machine,
+
+    /// The record buffer.
+    record: bed::Record<3>,
+
+    /// The line buffer for lifted records.
+    line: Vec<u8>,
+
+    /// The segment buffer for lifted records.
+    segments: Vec<Segment>,
+
+    /// The previous record's contig and whether it is in the chain file.
+    ///
+    /// Records are typically grouped by contig, so this is reused when the
+    /// name matches.
+    previous: Option<(Contig, bool)>,
+}
+
 /// Runs the `liftover bed` subcommand.
 pub fn liftover(args: Args) -> Result<()> {
+    let threads = parallel::threads(args.threads);
+
     info!(
         chain = %args.chain.display(),
         input = %args.input.display(),
@@ -128,50 +204,171 @@ pub fn liftover(args: Args) -> Result<()> {
             .unwrap_or_else(|| String::from("none")),
         include_bed_plus = args.include_bed_plus,
         ignore_bed_plus = args.ignore_bed_plus,
+        threads,
         "lifting over BED records"
     );
 
-    let machine = load_machine(&args.chain)?;
+    let machines = load_machines(&args.chain, threads)?;
 
-    let mut reader = bed::io::Reader::<3, _>::new(open_input(&args.input)?);
+    let input = open_input(&args.input)?;
     let mut writer = open_output(args.output.as_deref())?;
     let mut unmapped_writer = args
         .unmapped
         .as_deref()
-        .map(|path| open_output(Some(path)).map(bed::io::Writer::<3, _>::new))
+        .map(|path| open_output(Some(path)))
         .transpose()?;
-
-    let mut record = bed::Record::<3>::default();
-    let mut line = Vec::new();
-    let mut segments = Vec::new();
-
-    // NOTE: records are typically grouped by contig, so the previous record's
-    // contig (and whether it is in the chain file) is reused when the name
-    // matches.
-    let mut previous: Option<(Contig, bool)> = None;
-    let mut n = 0u64;
-    let mut mapped = 0u64;
-    let mut unmapped = 0u64;
-    let mut segments_written = 0u64;
-    let mut flipped = 0u64;
-    let mut split = 0u64;
-    let mut bed_plus = 0u64;
-    let mut reasons = BTreeMap::<Unmapped, u64>::new();
 
     if unmapped_writer.is_none() {
         debug!("no unmapped file was provided, so unmapped records will be discarded");
     }
 
-    loop {
-        let read = reader
-            .read_record(&mut record)
-            .with_context(|| format!("reading BED record {}", n + 1))?;
+    let workers = machines
+        .iter()
+        .map(|machine| Worker {
+            machine,
+            record: bed::Record::default(),
+            line: Vec::new(),
+            segments: Vec::new(),
+            previous: None,
+        })
+        .collect();
 
-        if read == 0 {
-            break;
+    let mut stats = Stats::default();
+
+    parallel::process(
+        input,
+        "BED",
+        Some(b'#'),
+        workers,
+        |worker, chunk, output| lift_chunk(worker, chunk, output, &args),
+        |output: Output| {
+            writer
+                .write_all(&output.lifted)
+                .context("writing lifted BED records")?;
+
+            if let Some(writer) = unmapped_writer.as_mut() {
+                writer
+                    .write_all(&output.unmapped)
+                    .context("writing unmapped BED records")?;
+            }
+
+            stats.merge(output.stats, args.ignore_bed_plus);
+            Ok(())
+        },
+    )?;
+
+    writer.flush()?;
+
+    if let Some(mut writer) = unmapped_writer {
+        writer.flush()?;
+    }
+
+    let Stats {
+        records: n,
+        mapped,
+        unmapped,
+        segments: segments_written,
+        flipped,
+        split,
+        bed_plus,
+        reasons,
+        ..
+    } = stats;
+
+    info!(
+        "lifted over {mapped} of {n} BED records into {segments_written} segments; {unmapped} \
+         records were unmapped"
+    );
+
+    if split > 0 {
+        info!("{split} records were split into multiple segments");
+    }
+
+    if flipped > 0 {
+        info!("{flipped} segments mapped to the opposite strand");
+    }
+
+    if bed_plus > 0 {
+        let action = if args.ignore_bed_plus {
+            "dropped"
+        } else {
+            "copied unchanged"
+        };
+        info!("{bed_plus} records had columns 7 and beyond {action}");
+    }
+
+    for (reason, count) in reasons {
+        info!("  {}: {count}", reason.description());
+    }
+
+    Ok(())
+}
+
+impl Stats {
+    /// Merges the statistics of the next chunk of records.
+    ///
+    /// The first record with columns 7 and beyond is logged.
+    fn merge(&mut self, other: Stats, ignore_bed_plus: bool) {
+        if let (None, Some((record, columns))) = (self.first_bed_plus, other.first_bed_plus) {
+            if ignore_bed_plus {
+                info!(
+                    record,
+                    columns, "dropping columns 7 and beyond from lifted records"
+                );
+            } else {
+                warn!(
+                    record,
+                    columns,
+                    "copying columns 7 and beyond unchanged; ensure they do not depend on the \
+                     record's coordinates"
+                );
+            }
+
+            self.first_bed_plus = other.first_bed_plus;
         }
 
-        n += 1;
+        self.records += other.records;
+        self.mapped += other.mapped;
+        self.unmapped += other.unmapped;
+        self.segments += other.segments;
+        self.flipped += other.flipped;
+        self.split += other.split;
+        self.bed_plus += other.bed_plus;
+
+        for (reason, count) in other.reasons {
+            *self.reasons.entry(reason).or_default() += count;
+        }
+    }
+}
+
+/// Lifts over a chunk of records.
+fn lift_chunk(
+    worker: &mut Worker<'_>,
+    chunk: &Chunk,
+    output: &mut Output,
+    args: &Args,
+) -> Result<()> {
+    let Worker {
+        machine,
+        record,
+        line,
+        segments,
+        previous,
+    } = worker;
+
+    let stats = &mut output.stats;
+    let mut reader = bed::io::Reader::<3, _>::new(&chunk.data[..]);
+    let mut unmapped_writer = args
+        .unmapped
+        .is_some()
+        .then(|| bed::io::Writer::<3, _>::new(&mut output.unmapped));
+
+    for n in chunk.first..chunk.first + chunk.lines as u64 {
+        reader
+            .read_record(record)
+            .with_context(|| format!("reading BED record {n}"))?;
+
+        stats.records += 1;
 
         let columns = 3 + record.other_fields().len();
         if columns > MAX_LIFTED_COLUMNS && !args.include_bed_plus && !args.ignore_bed_plus {
@@ -185,23 +382,11 @@ pub fn liftover(args: Args) -> Result<()> {
         }
 
         if columns > MAX_LIFTED_COLUMNS {
-            if bed_plus == 0 {
-                if args.ignore_bed_plus {
-                    info!(
-                        record = n,
-                        columns, "dropping columns 7 and beyond from lifted records"
-                    );
-                } else {
-                    warn!(
-                        record = n,
-                        columns,
-                        "copying columns 7 and beyond unchanged; ensure they do not depend on the \
-                         record's coordinates"
-                    );
-                }
+            if stats.bed_plus == 0 {
+                stats.first_bed_plus = Some((n, columns));
             }
 
-            bed_plus += 1;
+            stats.bed_plus += 1;
         }
 
         let name: &[u8] = record.reference_sequence_name();
@@ -216,7 +401,7 @@ pub fn liftover(args: Args) -> Result<()> {
                 (contig, known)
             }
         };
-        previous = Some((contig.clone(), known));
+        *previous = Some((contig.clone(), known));
 
         // NOTE: `noodles` converts BED's 0-based start into a 1-based
         // `Position` (and leaves the exclusive end as is), so one is subtracted
@@ -246,12 +431,12 @@ pub fn liftover(args: Args) -> Result<()> {
         )
         .with_context(|| format!("creating interval for BED record {n}"))?;
 
-        match lift(&machine, interval, known, &mut segments) {
+        match lift(machine, interval, known, segments) {
             Ok(()) => {
-                mapped += 1;
+                stats.mapped += 1;
 
                 if segments.len() > 1 {
-                    split += 1;
+                    stats.split += 1;
                     debug!(
                         record = n,
                         %contig,
@@ -262,7 +447,7 @@ pub fn liftover(args: Args) -> Result<()> {
                     );
                 }
 
-                for segment in &segments {
+                for segment in segments.iter() {
                     trace!(
                         record = n,
                         contig = %segment.start.contig(),
@@ -273,23 +458,23 @@ pub fn liftover(args: Args) -> Result<()> {
                     );
 
                     if segment.flipped {
-                        flipped += 1;
+                        stats.flipped += 1;
                     }
 
                     write_segment(
-                        &mut writer,
-                        &mut line,
-                        &record,
+                        &mut output.lifted,
+                        line,
+                        record,
                         segment,
                         args.ignore_bed_plus,
                     )
                     .with_context(|| format!("writing BED record {n}"))?;
-                    segments_written += 1;
+                    stats.segments += 1;
                 }
             }
             Err(reason) => {
-                unmapped += 1;
-                *reasons.entry(reason).or_default() += 1;
+                stats.unmapped += 1;
+                *stats.reasons.entry(reason).or_default() += 1;
 
                 debug!(
                     record = n,
@@ -303,43 +488,11 @@ pub fn liftover(args: Args) -> Result<()> {
                 if let Some(writer) = unmapped_writer.as_mut() {
                     writeln!(writer.get_mut(), "#{}", reason.description())?;
                     writer
-                        .write_record(&record)
+                        .write_record(record)
                         .with_context(|| format!("writing unmapped BED record {n}"))?;
                 }
             }
         }
-    }
-
-    writer.flush()?;
-
-    if let Some(mut writer) = unmapped_writer {
-        writer.get_mut().flush()?;
-    }
-
-    info!(
-        "lifted over {mapped} of {n} BED records into {segments_written} segments; {unmapped} \
-         records were unmapped"
-    );
-
-    if split > 0 {
-        info!("{split} records were split into multiple segments");
-    }
-
-    if flipped > 0 {
-        info!("{flipped} segments mapped to the opposite strand");
-    }
-
-    if bed_plus > 0 {
-        let action = if args.ignore_bed_plus {
-            "dropped"
-        } else {
-            "copied unchanged"
-        };
-        info!("{bed_plus} records had columns 7 and beyond {action}");
-    }
-
-    for (reason, count) in reasons {
-        info!("  {}: {count}", reason.description());
     }
 
     Ok(())

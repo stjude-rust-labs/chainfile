@@ -4,6 +4,7 @@ mod swap;
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -29,9 +30,11 @@ use tracing::debug;
 use tracing::info;
 
 use crate::fasta::IndexedFasta;
-use crate::io::load_machine;
+use crate::io::load_machines;
 use crate::io::open_input;
 use crate::io::open_output;
+use crate::parallel;
+use crate::parallel::Chunk;
 use crate::sequence::forward_bounds;
 use crate::sequence::reverse_complement;
 
@@ -90,6 +93,11 @@ pub struct Args {
     /// The file to write rejected records to.
     #[arg(short, long)]
     rejected: Option<PathBuf>,
+
+    /// The number of worker threads; defaults to the number of available
+    /// cores.
+    #[arg(short, long)]
+    threads: Option<NonZeroUsize>,
 }
 
 /// The reason a record could not be lifted over.
@@ -186,10 +194,68 @@ struct Alleles {
     swapped: bool,
 }
 
+/// The output of lifting over a chunk of records.
+#[derive(Debug, Default)]
+struct Output {
+    /// The lifted records.
+    lifted: Vec<u8>,
+
+    /// The rejected records.
+    rejected: Vec<u8>,
+
+    /// The number of records read.
+    records: u64,
+
+    /// The number of records that were lifted over.
+    lifted_count: u64,
+
+    /// The number of lifted records whose alleles were swapped.
+    swapped_count: u64,
+
+    /// The number of records rejected for each reason.
+    rejections: BTreeMap<Rejection, u64>,
+}
+
+/// The state of a worker thread.
+struct Worker<'a> {
+    /// The liftover machine.
+    machine: &'a Machine,
+
+    /// The query genome FASTA.
+    fasta: IndexedFasta,
+
+    /// The record buffer.
+    record: RecordBuf,
+}
+
+/// The headers of the input and outputs.
+struct Headers {
+    /// The input header.
+    input: vcf::Header,
+
+    /// The header of the lifted records.
+    output: vcf::Header,
+
+    /// The header of the rejected records.
+    rejected: vcf::Header,
+}
+
 /// Runs the `liftover vcf` subcommand.
 pub fn liftover(args: Args) -> Result<()> {
-    let machine = load_machine(&args.chain)?;
-    let mut fasta = IndexedFasta::open(&args.query_fasta)?;
+    let threads = parallel::threads(args.threads);
+    debug!(threads, "lifting over VCF records");
+
+    let machines = load_machines(&args.chain, threads)?;
+    let workers = machines
+        .iter()
+        .map(|machine| {
+            Ok(Worker {
+                machine,
+                fasta: IndexedFasta::open(&args.query_fasta)?,
+                record: RecordBuf::default(),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     let mut reader = vcf::io::Reader::new(open_input(&args.input)?);
     let header = reader.read_header().context("reading VCF header")?;
@@ -197,7 +263,7 @@ pub fn liftover(args: Args) -> Result<()> {
     let mut output_header = header.clone();
     let contigs = output_header.contigs_mut();
     contigs.clear();
-    for (name, length) in fasta.contigs() {
+    for (name, length) in workers[0].fasta.contigs() {
         let mut contig = Map::<NoodlesContig>::new();
         *contig.length_mut() = Some(usize::try_from(*length)?);
         contigs.insert(name.clone(), contig);
@@ -234,79 +300,50 @@ pub fn liftover(args: Args) -> Result<()> {
         None => None,
     };
 
+    let write_rejected = rejected_writer.is_some();
+    let headers = Headers {
+        input: header,
+        output: output_header,
+        rejected: rejected_header,
+    };
+
     let mut n = 0u64;
     let mut lifted_count = 0u64;
     let mut swapped_count = 0u64;
     let mut rejections = BTreeMap::<Rejection, u64>::new();
 
-    let mut record = RecordBuf::default();
+    // NOTE: the inner reader is positioned at the first record after the
+    // header is read.
+    parallel::process(
+        reader.into_inner(),
+        "VCF",
+        None,
+        workers,
+        |worker, chunk, output| lift_chunk(worker, chunk, output, &headers, write_rejected),
+        |output: Output| {
+            writer
+                .get_mut()
+                .write_all(&output.lifted)
+                .context("writing lifted VCF records")?;
 
-    // NOTE: records are read into a reused buffer because `record_bufs()`
-    // clones every record it reads. Parsing resets every field of the buffer.
-    while reader
-        .read_record_buf(&header, &mut record)
-        .with_context(|| format!("reading VCF record {}", n + 1))?
-        != 0
-    {
-        n += 1;
-
-        let lifted = lift(&machine, &mut fasta, &record)
-            .with_context(|| format!("lifting over VCF record {n}"))?;
-
-        // NOTE: the swap is applied to a copy so that a record whose fields
-        // cannot be swapped is written to the rejected file unchanged.
-        let lifted = match lifted {
-            Ok(lifted) if lifted.swapped => {
-                let mut swapped = record.clone();
-
-                if swap::swap_alleles(&header, &mut swapped) {
-                    debug!("swapped the alleles of VCF record {n}");
-                    swapped
-                        .info_mut()
-                        .insert(String::from(SWAPPED_ALLELES_KEY), Some(Value::Flag));
-                    record = swapped;
-                    Ok(lifted)
-                } else {
-                    debug!("could not swap the allele-indexed fields of VCF record {n}");
-                    Err(Rejection::SwappedAlleles)
-                }
-            }
-            lifted => lifted,
-        };
-
-        match lifted {
-            Ok(lifted) => {
-                lifted_count += 1;
-                swapped_count += u64::from(lifted.swapped);
-
-                *record.reference_sequence_name_mut() = lifted.contig.to_string();
-                *record.variant_start_mut() = Some(
-                    NoodlesPosition::try_from(usize::try_from(lifted.position.get())?)
-                        .context("invalid lifted position")?,
-                );
-                *record.reference_bases_mut() = lifted.reference;
-                *record.alternate_bases_mut() = AlternateBases::from(lifted.alternates);
-
+            if let Some(writer) = rejected_writer.as_mut() {
                 writer
-                    .write_variant_record(&output_header, &record)
-                    .with_context(|| format!("writing VCF record {n}"))?;
+                    .get_mut()
+                    .write_all(&output.rejected)
+                    .context("writing rejected VCF records")?;
             }
-            Err(rejection) => {
-                *rejections.entry(rejection).or_default() += 1;
 
-                if let Some(writer) = rejected_writer.as_mut() {
-                    record.info_mut().insert(
-                        String::from(REJECT_REASON_KEY),
-                        Some(Value::String(rejection.code().into())),
-                    );
+            n += output.records;
+            lifted_count += output.lifted_count;
+            swapped_count += output.swapped_count;
 
-                    writer
-                        .write_variant_record(&rejected_header, &record)
-                        .with_context(|| format!("writing rejected VCF record {n}"))?;
-                }
+            for (rejection, count) in output.rejections {
+                *rejections.entry(rejection).or_default() += count;
             }
-        }
-    }
+
+            Ok(())
+        },
+    )?;
 
     writer.get_mut().flush()?;
 
@@ -322,6 +359,97 @@ pub fn liftover(args: Args) -> Result<()> {
 
     for (rejection, count) in rejections {
         info!("  {}: {count}", rejection.code());
+    }
+
+    Ok(())
+}
+
+/// Lifts over a chunk of records.
+///
+/// Rejected records are only written when `write_rejected` is set.
+fn lift_chunk(
+    worker: &mut Worker<'_>,
+    chunk: &Chunk,
+    output: &mut Output,
+    headers: &Headers,
+    write_rejected: bool,
+) -> Result<()> {
+    let Worker {
+        machine,
+        fasta,
+        record,
+    } = worker;
+
+    let mut reader = vcf::io::Reader::new(&chunk.data[..]);
+    let mut writer = vcf::io::Writer::new(&mut output.lifted);
+    let mut rejected_writer = vcf::io::Writer::new(&mut output.rejected);
+
+    for n in chunk.first..chunk.first + chunk.lines as u64 {
+        // NOTE: records are read into a reused buffer because `record_bufs()`
+        // clones every record it reads. Parsing resets every field of the
+        // buffer.
+        reader
+            .read_record_buf(&headers.input, record)
+            .with_context(|| format!("reading VCF record {n}"))?;
+
+        output.records += 1;
+
+        let lifted =
+            lift(machine, fasta, record).with_context(|| format!("lifting over VCF record {n}"))?;
+
+        // NOTE: the swap is applied to a copy so that a record whose fields
+        // cannot be swapped is written to the rejected file unchanged.
+        let lifted = match lifted {
+            Ok(lifted) if lifted.swapped => {
+                let mut swapped = record.clone();
+
+                if swap::swap_alleles(&headers.input, &mut swapped) {
+                    debug!("swapped the alleles of VCF record {n}");
+                    swapped
+                        .info_mut()
+                        .insert(String::from(SWAPPED_ALLELES_KEY), Some(Value::Flag));
+                    *record = swapped;
+                    Ok(lifted)
+                } else {
+                    debug!("could not swap the allele-indexed fields of VCF record {n}");
+                    Err(Rejection::SwappedAlleles)
+                }
+            }
+            lifted => lifted,
+        };
+
+        match lifted {
+            Ok(lifted) => {
+                output.lifted_count += 1;
+                output.swapped_count += u64::from(lifted.swapped);
+
+                *record.reference_sequence_name_mut() = lifted.contig.to_string();
+                *record.variant_start_mut() = Some(
+                    NoodlesPosition::try_from(usize::try_from(lifted.position.get())?)
+                        .context("invalid lifted position")?,
+                );
+                *record.reference_bases_mut() = lifted.reference;
+                *record.alternate_bases_mut() = AlternateBases::from(lifted.alternates);
+
+                writer
+                    .write_variant_record(&headers.output, record)
+                    .with_context(|| format!("writing VCF record {n}"))?;
+            }
+            Err(rejection) => {
+                *output.rejections.entry(rejection).or_default() += 1;
+
+                if write_rejected {
+                    record.info_mut().insert(
+                        String::from(REJECT_REASON_KEY),
+                        Some(Value::String(rejection.code().into())),
+                    );
+
+                    rejected_writer
+                        .write_variant_record(&headers.rejected, record)
+                        .with_context(|| format!("writing rejected VCF record {n}"))?;
+                }
+            }
+        }
     }
 
     Ok(())

@@ -11,6 +11,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - A `chainfile` command line tool, enabled with the `cli` feature, with
   `liftover bed`, `liftover vcf`, `view`, `stats`, and `check` subcommands.
+- `liftover bed` and `liftover vcf` lift records over in parallel, using all
+  available cores by default (set with `--threads`), and write them in input
+  order.
 - A `chainfile-generate` crate (in `tools/`) that generates synthetic genomes and
   chain files, and random BED and VCF records that exercise specific liftover
   situations (such as gaps, unaligned regions, multiple chains, and swapped

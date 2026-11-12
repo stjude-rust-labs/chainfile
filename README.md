@@ -85,6 +85,9 @@ chainfile check --chain hg19ToHg38.over.chain.gz \
 
 FASTA files need a `.fai` index, plus a `.gzi` index when BGZF-compressed.
 
+Both liftover commands use all available cores by default and keep records in
+input order. Use `--threads` to set the number of worker threads.
+
 ### BED liftover
 
 - Each lifted segment is written as its own record.

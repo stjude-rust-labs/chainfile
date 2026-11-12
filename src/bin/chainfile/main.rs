@@ -8,6 +8,7 @@
 mod commands;
 mod fasta;
 mod io;
+mod parallel;
 mod sequence;
 
 use anyhow::Result;
