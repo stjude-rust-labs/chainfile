@@ -375,8 +375,8 @@ impl Chromosomes {
         loop {
             let index = self.weights.next();
 
-            // SAFETY: we just picked a random contig from the map, so we know this
-            // exists and will always unwrap.
+            // SAFETY: we just picked a random contig from the map, so we know
+            // this exists and will always unwrap.
             let (contig, size) = self.chromosomes[index].clone();
 
             if !self.canonical_chromosomes_only || CANONICAL_CHROMOSOMES.contains(&contig.as_str())
