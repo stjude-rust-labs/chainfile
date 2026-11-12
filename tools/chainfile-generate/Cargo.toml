@@ -1,0 +1,21 @@
+[package]
+name = "chainfile-generate"
+authors = ["St. Jude Rust Labs"]
+version = "0.1.0"
+description = "Generates random test data for chain files."
+license = "Apache-2.0/MIT"
+edition = "2021"
+rust-version = "1.91.0"
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+chainfile = { path = "../.." }
+clap = { version = "4.6.7", features = ["derive"] }
+flate2 = "1.1.11"
+noodles = { version = "0.119.0", features = ["core", "fasta"] }
+omics = { version = "0.4.0", features = ["coordinate", "position-u64"] }
+rand = "0.10.3"
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -7,10 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## Unreleased
 
+### Added
+
+- A `chainfile` command line tool, enabled with the `cli` feature, with
+  `liftover bed`, `liftover vcf`, `view`, `stats`, and `check` subcommands.
+- A `chainfile-generate` crate (in `tools/`) that generates synthetic genomes and
+  chain files, and random BED and VCF records that exercise specific liftover
+  situations (such as gaps, unaligned regions, multiple chains, and swapped
+  alleles) at configurable percentages.
+- A `chainfile-compare` crate (in `tools/`) that compares BED liftover with
+  CrossMap.
+
 ### Changed
 
-- The minimum supported Rust version is now 1.86.0 to support current
-  transitive dependency releases.
+- The minimum supported Rust version is now 1.91.0 to support current
+  transitive dependency releases and `noodles` 0.119.
+- Dependencies are updated to their latest releases, including `nonempty`
+  0.12, which is exposed by `alignment::Section::data()`, and `rust-lapper` 2.
 
 ### Fixed
 
@@ -20,8 +33,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   size.
 - Liftover machine construction now returns an error for conflicting chromosome
   sizes.
-- The `compare-crossmap` binary now returns an error for failed chain-file
-  downloads without caching an empty file.
 - The alignment section iterator now stops after yielding an error instead of
   panicking when iteration continues.
 - Liftover machine construction now ignores exact duplicate chain sections
@@ -31,8 +42,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `liftover::machine::builder::Error` enum.
 - Step-through iterators now stop after any error, and no longer log a
   warning about not being finished when dropped after an error.
-- The `compare-crossmap` binary now correctly reports negative-strand query
-  intervals on the positive strand when exploring mismatches.
+
+### Removed
+
+- The `chain_check`, `chain_count`, and `chain_view` examples, which are
+  superseded by the `check`, `stats`, and `view` subcommands.
+- The `compare-crossmap` binary and the `binaries` feature, which are
+  superseded by `chainfile-compare crossmap`.
 
 ## 0.4.0 — 03-19-2026
 

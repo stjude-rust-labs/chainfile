@@ -8,51 +8,51 @@ homepage = "https://github.com/stjude-rust-labs/chainfile"
 repository = "https://github.com/stjude-rust-labs/chainfile"
 documentation = "https://docs.rs/chainfile"
 edition = "2021"
-rust-version = "1.86.0"
+rust-version = "1.91.0"
+
+[workspace]
+members = ["tools/chainfile-compare", "tools/chainfile-generate"]
 
 [dependencies]
 omics = { version = "0.4.0", features = ["coordinate", "position-u64"] }
-anyhow = { version = "1.0.89", optional = true }
-clap = { version = "4.5.20", features = ["derive"], optional = true }
-clap-verbosity-flag = { version = "2.2.2", optional = true }
-flate2 = "1.0.25"
-nonempty = "0.9.0"
-rand = { version = "0.8.5", optional = true }
-regex = "1.11.1"
-reqwest = { version = "0.12.12", features = ["blocking"], optional = true }
-rust-lapper = "1.1.0"
-thiserror = "2.0.18"
-tempdir = { version = "0.3.7", optional = true }
-tracing = { version = "0.1.40", optional = true }
+anyhow = { version = "1.0.104", optional = true }
+clap = { version = "4.6.7", features = ["derive"], optional = true }
+clap-verbosity-flag = { version = "3.0.4", optional = true }
+flate2 = "1.1.11"
+nonempty = "0.12.0"
+noodles = { version = "0.119.0", features = ["bed", "core", "fasta", "vcf"], optional = true }
+regex = "1.13.1"
+rust-lapper = "2.0.1"
+thiserror = "2.0.21"
+tracing = { version = "0.1.44", optional = true }
 tracing-log = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = [
+tracing-subscriber = { version = "0.3.23", features = [
     "env-filter",
 ], optional = true }
-weighted_rand = { version = "0.4.2", optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.5.1", features = ["html_reports"] }
-noodles = { version = "0.87.0", features = ["core", "fasta"] }
-rand = "0.8.5"
-tabled = { version = "0.16.0" }
+criterion = { version = "0.8.2", features = ["html_reports"] }
+rand = "0.10.3"
+tempfile = "3.27.0"
 
 [features]
 default = []
-binaries = [
+cli = [
     "dep:anyhow",
     "dep:clap",
     "dep:clap-verbosity-flag",
-    "dep:rand",
-    "dep:reqwest",
-    "dep:tempdir",
+    "dep:noodles",
     "dep:tracing",
     "dep:tracing-subscriber",
-    "dep:weighted_rand",
 ]
 
 [[bin]]
-name = "compare-crossmap"
-required-features = ["binaries"]
+name = "chainfile"
+required-features = ["cli"]
+
+[[test]]
+name = "cli"
+required-features = ["cli"]
 
 [[bench]]
 name = "machine"

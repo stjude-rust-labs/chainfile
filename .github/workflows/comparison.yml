@@ -6,18 +6,34 @@ on:
       - main
   pull_request:
 
+env:
+  # NOTE: every run generates a new random fixture and new random records, like
+  # fuzzing. Each seed is printed in the logs, so pass it back with `--seed` to
+  # reproduce a failure.
+  RECORDS: 1000000
+
 jobs:
   crossmap:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: reference
-          key: ${{ runner.os }}-reference
+          key: ${{ runner.os }}-reference-chains
       - name: Update Rust
         run: rustup update stable && rustup default stable
       - name: Install CrossMap
         run: pip install CrossMap
-      - run: cargo run --release --features=binaries --bin=compare-crossmap -- -d $PWD -vvv hg19ToHg38
-      - run: cargo run --release --features=binaries --bin=compare-crossmap -- -d $PWD -vvv hg38ToHs1
+      - name: Build
+        run: cargo build --release --workspace --all-features
+      - name: Download the chain files
+        run: ./.github/scripts/download-chains.sh reference
+      - name: Generate the synthetic fixture
+        run: target/release/chainfile-generate fixture -o fixture
+      - name: Compare BED liftover (synthetic)
+        run: target/release/chainfile-compare --chainfile target/release/chainfile crossmap bed -c fixture/reference-to-query.chain -n "$RECORDS"
+      - name: Compare BED liftover (hg19ToHg38)
+        run: target/release/chainfile-compare --chainfile target/release/chainfile crossmap bed -c reference/hg19ToHg38.over.chain.gz -n "$RECORDS"
+      - name: Compare BED liftover (hg38ToHs1)
+        run: target/release/chainfile-compare --chainfile target/release/chainfile crossmap bed -c reference/hg38ToHs1.over.chain.gz -n "$RECORDS"

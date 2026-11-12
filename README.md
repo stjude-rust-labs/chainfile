@@ -56,6 +56,57 @@ You can take a look at the
 [examples](https://github.com/stjude-rust-labs/chainfile/tree/main/examples) to
 get a sense of how to use the crate.
 
+## 🧬 Command Line Tool
+
+The crate also provides a `chainfile` command line tool behind the `cli`
+feature. It reads plain or gzip-compressed chain files and uses `-` to mean
+standard input or output.
+
+```bash
+cargo install chainfile --features cli
+
+# Lift BED records over; unmapped records are written with their reason.
+chainfile liftover bed --chain hg19ToHg38.over.chain.gz input.bed \
+  --output lifted.bed --unmapped unmapped.bed
+
+# Lift VCF records over, checking REF alleles against the indexed query genome.
+chainfile liftover vcf --chain hg19ToHg38.over.chain.gz --query-fasta hg38.fa \
+  input.vcf --output lifted.vcf --rejected rejected.vcf
+
+# Print alignment blocks, chain headers, or summary statistics.
+chainfile view hg19ToHg38.over.chain.gz
+chainfile view --headers hg19ToHg38.over.chain.gz
+chainfile stats hg19ToHg38.over.chain.gz
+
+# Check how well a chain file's aligned bases agree between two genomes.
+chainfile check --chain hg19ToHg38.over.chain.gz \
+  --reference-fasta hg19.fa --query-fasta hg38.fa --min-identity 0.95
+```
+
+FASTA files need a `.fai` index, plus a `.gzi` index when BGZF-compressed.
+
+### BED liftover
+
+- Each lifted segment is written as its own record.
+- The strand column is flipped when the alignment is on the opposite strand.
+- Records with more than six columns are an error unless you pass
+  `--include-bed-plus` (copy the extra columns) or `--ignore-bed-plus` (drop
+  them).
+
+### VCF liftover
+
+- Records are rejected when they do not map uniquely and contiguously, or when
+  REF does not match the query genome. Rejected records get a
+  `LiftoverRejectReason` INFO field.
+- On opposite-strand alignments, alleles are reverse-complemented and
+  re-anchored.
+- When a biallelic substitution's ALT matches the query genome, REF and ALT are
+  swapped and the record gets a `LiftoverSwappedAlleles` INFO flag.
+  Allele-indexed fields (such as `GT`, `AD`, `PL`, `AF`, and `AC`) are
+  rewritten, and fields that cannot be rewritten are dropped.
+
+Run `chainfile help <command>` for the full set of options.
+
 ## 🖥️ Development
 
 To bootstrap a development environment, please use the following commands.
@@ -72,6 +123,41 @@ cargo build --release
 cargo run --release --example
 ```
 
+### Generating test data
+
+The `chainfile-generate` crate in `tools/` generates random test data.
+
+- `fixture` writes a synthetic reference genome, query genome, and chain file.
+- `bed` and `vcf` write random records for a chain file. Flags such as
+  `--spans-gap 5` set the percentage of records in each situation.
+
+Each run prints its seed. Pass it back with `--seed` to regenerate the same
+data.
+
+```bash
+cargo run --release -p chainfile-generate -- fixture -o fixture
+cargo run --release -p chainfile-generate -- bed -c fixture/reference-to-query.chain \
+    -n 1000 --spans-gap 5 --unaligned 5 --multiple-chains 5 --opposite-strand 5
+```
+
+### Comparing with other tools
+
+The `chainfile-compare` crate in `tools/` lifts over random records with both
+`chainfile` and another tool. It prints a table of outcomes and fails if any
+record disagrees.
+
+```bash
+cargo build --release --workspace --all-features
+
+# BED liftover with CrossMap (`pip install CrossMap`).
+target/release/chainfile-compare --chainfile target/release/chainfile \
+    crossmap bed -c fixture/reference-to-query.chain
+```
+
+The `Compare` workflow runs these on every push. Each run uses a new random
+fixture and new random records, along with UCSC's `hg19ToHg38` and `hg38ToHs1`
+chain files. The seeds are printed in the logs so failures can be reproduced.
+
 ## 🚧️ Tests
 
 Before submitting any pull requests, please make sure the code passes the
@@ -79,10 +165,10 @@ following checks.
 
 ```bash
 # Run the project's tests.
-cargo test --all-features
+cargo test --workspace --all-features
 
 # Ensure the project doesn't have any linting warnings.
-cargo clippy --all-features
+cargo clippy --workspace --all-targets --all-features
 
 # Ensure the project passes `cargo fmt`.
 cargo +nightly fmt --check
@@ -90,7 +176,7 @@ cargo +nightly fmt --check
 
 ## Minimum Supported Rust Version (MSRV)
 
-This crate is designed to work with Rust version 1.86.0 or later. It may, by
+This crate is designed to work with Rust version 1.91.0 or later. It may, by
 happenstance, work with earlier versions of Rust.
 
 ## 🤝 Contributing

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::io::BufRead;
 use std::ops::Range;
+use std::sync::Arc;
 
 use omics::coordinate::Contig;
 use omics::coordinate::Strand;
@@ -172,7 +173,6 @@ impl Builder {
 
         Ok(Machine {
             inner,
-            chains,
             reference_chromosomes,
             query_chromosomes,
         })
@@ -191,7 +191,7 @@ impl Default for Builder {
     reason = "`Error` retains the conflicting chain headers"
 )]
 fn push_segments(section: &alignment::Section, entries: &mut Vec<Iv>) -> Result<()> {
-    let chain_id = section.header().id();
+    let chain = Arc::new(section.header().clone());
 
     for pair_result in section.stepthrough().map_err(Error::StepthroughError)? {
         let pair = pair_result.map_err(Error::StepthroughError)?;
@@ -210,7 +210,10 @@ fn push_segments(section: &alignment::Section, entries: &mut Vec<Iv>) -> Result<
         entries.push(lapper::Interval {
             start,
             stop,
-            val: AnnotatedPair { chain_id, pair },
+            val: AnnotatedPair {
+                chain: chain.clone(),
+                pair,
+            },
         });
     }
 

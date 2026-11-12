@@ -1,0 +1,24 @@
+##fileformat=VCFv4.3
+##contig=<ID=chrA,length=30>
+##contig=<ID=chrZ,length=10>
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele frequency">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Allele number">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample
+chrA	3	snv_positive	T	G	50	PASS	.	GT	0/1
+chrA	6	snv_swapped	A	C	50	PASS	AF=0.25;AC=0;AN=2	GT:AD:PL	0/0:9,1:0,30,300
+chrA	7	snv_mismatch	G	T	50	PASS	.	GT	1/1
+chrA	10	spans_gap	AATT	A	50	PASS	.	GT	0/1
+chrA	14	deletion_positive	ACA	A	50	PASS	.	GT	0/1
+chrA	14	delins_positive	AC	G	50	PASS	.	GT	0/1
+chrA	6	mnp_mismatch	AG	TT	50	PASS	.	GT	0/1
+chrA	22	snv_negative	T	C	50	PASS	.	GT	0/1
+chrA	25	deletion_negative	AC	A	50	PASS	.	GT	0/1
+chrA	25	delins_negative	AC	G	50	PASS	.	GT	0/1
+chrA	28	insertion_negative	T	TGG	50	PASS	.	GT	0/1
+chrZ	2	unknown_contig	C	A	50	PASS	.	GT	0/1
+chrA	2	symbolic	C	<DEL>	50	PASS	END=5	GT	0/1

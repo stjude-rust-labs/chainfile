@@ -1,6 +1,7 @@
 //! A machine for lifting over coordinates within a reference genome.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use omics::coordinate::Contig;
 use omics::coordinate::Strand;
@@ -18,11 +19,14 @@ pub use builder::Builder;
 /// A dictionary of chromosome names and their size.
 pub type ChromosomeDictionary = HashMap<String, Number>;
 
-/// A mapping segment annotated with the chain ID from which it originated.
+/// A mapping segment annotated with the chain from which it originated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AnnotatedPair {
-    /// The chain ID from which this segment originated.
-    chain_id: usize,
+    /// The chain from which this segment originated.
+    ///
+    /// The header is shared by all of the chain's segments so that results
+    /// can refer to it without a lookup or a deep copy.
+    chain: Arc<Header>,
 
     /// The mapping segment.
     pair: ContiguousIntervalPair,
@@ -36,7 +40,7 @@ struct AnnotatedPair {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LiftoverResult {
     /// The chain from which these liftover results originated.
-    chain: Header,
+    chain: Arc<Header>,
 
     /// The mapping segments from this chain that overlap the query.
     segments: Vec<ContiguousIntervalPair>,
@@ -69,9 +73,6 @@ pub struct Machine {
     /// The inner lookup table of positions in the reference genome to positions
     /// in the query genome for each contig in the reference genome.
     inner: HashMap<Contig, lapper::Lapper<Number, AnnotatedPair>>,
-
-    /// A lookup table from chain ID to the chain header.
-    chains: HashMap<usize, Header>,
 
     /// The reference chromosome corpus.
     reference_chromosomes: ChromosomeDictionary,
@@ -119,38 +120,45 @@ impl Machine {
 
         let strand = interval.strand();
 
-        let mut hits = Vec::<(usize, ContiguousIntervalPair)>::new();
+        let mut matches = entry
+            .find(start, stop)
+            .filter(|e| e.val.pair.reference().strand() == strand)
+            .map(|e| {
+                // SAFETY: the lapper guarantees that `e.val.pair` overlaps
+                // `interval`, so `clamp()` will always succeed.
+                let pair = e.val.pair.clone().clamp(interval.clone()).unwrap();
+                (&e.val.chain, pair)
+            });
 
-        for e in entry.find(start, stop) {
-            if e.val.pair.reference().strand() != strand {
-                continue;
-            }
+        let first = matches.next()?;
 
-            // SAFETY: the lapper guarantees that `e.val.pair` overlaps
-            // `interval`, so `clamp()` will always succeed.
-            let pair = e.val.pair.clone().clamp(interval.clone()).unwrap();
-            hits.push((e.val.chain_id, pair));
-        }
+        // NOTE: most intervals overlap a single segment, so that case skips
+        // the allocation, grouping, and sorting below.
+        let Some(second) = matches.next() else {
+            let (chain, pair) = first;
+            return Some(vec![LiftoverResult {
+                chain: chain.clone(),
+                segments: vec![pair],
+            }]);
+        };
 
-        if hits.is_empty() {
-            return None;
-        }
+        let mut hits = vec![first, second];
+        hits.extend(matches);
 
         // Sort by chain ID so that consecutive entries with the same ID are
         // adjacent, then group them.
-        hits.sort_by_key(|(id, _)| *id);
+        hits.sort_by_key(|(chain, _)| chain.id());
 
         let mut results = Vec::<LiftoverResult>::new();
 
-        for (chain_id, pair) in hits {
+        for (chain, pair) in hits {
             match results.last_mut() {
-                Some(last) if last.chain().id() == chain_id => {
+                Some(last) if last.chain().id() == chain.id() => {
                     last.segments.push(pair);
                 }
                 _ => {
-                    let chain = self.chains[&chain_id].clone();
                     results.push(LiftoverResult {
-                        chain,
+                        chain: chain.clone(),
                         segments: vec![pair],
                     });
                 }

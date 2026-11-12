@@ -10,7 +10,7 @@ use omics::coordinate::Contig;
 use omics::coordinate::Strand;
 use omics::coordinate::interbase::Coordinate;
 use omics::coordinate::interval::interbase::Interval;
-use rand::Rng;
+use rand::RngExt as _;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use support::generate_chain_data;
@@ -31,9 +31,9 @@ fn generate_query_intervals(count: usize) -> Vec<Interval> {
 
     (0..count)
         .map(|_| {
-            let contig_idx = rng.gen_range(1..=NUM_CONTIGS);
+            let contig_idx = rng.random_range(1..=NUM_CONTIGS);
             let contig = Contig::new_unchecked(format!("chr{contig_idx}"));
-            let pos = rng.gen_range(0..total - 1);
+            let pos = rng.random_range(0..total - 1);
 
             let from = Coordinate::new(contig.clone(), Strand::Positive, pos);
             let to = Coordinate::new(contig, Strand::Positive, pos + 1);
