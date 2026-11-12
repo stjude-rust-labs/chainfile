@@ -22,6 +22,17 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   sizes.
 - The `compare-crossmap` binary now returns an error for failed chain-file
   downloads without caching an empty file.
+- The alignment section iterator now stops after yielding an error instead of
+  panicking when iteration continues.
+- Liftover machine construction now ignores exact duplicate chain sections
+  instead of returning their segments twice, and returns the new
+  `InconsistentChainData` error for duplicate chain IDs with matching headers
+  but different alignment data. This adds a variant to the public
+  `liftover::machine::builder::Error` enum.
+- Step-through iterators now stop after any error, and no longer log a
+  warning about not being finished when dropped after an error.
+- The `compare-crossmap` binary now correctly reports negative-strand query
+  intervals on the positive strand when exploring mismatches.
 
 ## 0.4.0 — 03-19-2026
 

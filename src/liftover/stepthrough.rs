@@ -122,24 +122,9 @@ impl StepThroughWithData {
 
         Ok(())
     }
-}
 
-impl Drop for StepThroughWithData {
-    fn drop(&mut self) {
-        if !self.finished && !std::thread::panicking() {
-            warn!("a step-through has not been properly finished before dropping!")
-        }
-    }
-}
-
-impl Iterator for StepThroughWithData {
-    type Item = Result<(ContiguousIntervalPair, data::Record), Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.finished {
-            return None;
-        }
-
+    /// Steps forward by one data record.
+    fn step(&mut self) -> Option<Result<(ContiguousIntervalPair, data::Record), Error>> {
         let chunk = match self.data.next() {
             Some(c) => c,
             None => match self.finish() {
@@ -209,6 +194,34 @@ impl Iterator for StepThroughWithData {
         };
 
         Some(Ok((pair, chunk)))
+    }
+}
+
+impl Drop for StepThroughWithData {
+    fn drop(&mut self) {
+        if !self.finished && !std::thread::panicking() {
+            warn!("a step-through has not been properly finished before dropping!")
+        }
+    }
+}
+
+impl Iterator for StepThroughWithData {
+    type Item = Result<(ContiguousIntervalPair, data::Record), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        let result = self.step();
+
+        // The pointers are left in an inconsistent state after an error, so
+        // the step-through cannot continue.
+        if let Some(Err(_)) = result {
+            self.finished = true;
+        }
+
+        result
     }
 }
 
@@ -359,6 +372,26 @@ mod tests {
             err.to_string(),
             String::from("misaligned data section, which indicates a malformed chain file")
         );
+        assert!(stepthrough.next().is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_it_stops_after_an_error() -> Result<(), Box<dyn std::error::Error>> {
+        // The second block extends past the start of the query sequence.
+        let data = b"chain 0 seq0 10 + 0 10 seq0 5 - 0 5 1\n3\t0\t0\n7";
+        let mut reader = crate::Reader::new(&data[..]);
+
+        let section = reader.sections().next().unwrap()?;
+        let mut stepthrough = section.stepthrough()?;
+
+        assert!(stepthrough.next().unwrap().is_ok());
+        assert!(matches!(
+            stepthrough.next().unwrap().unwrap_err(),
+            super::Error::IntervalStepthroughOutOfBounds(..)
+        ));
+        assert!(stepthrough.next().is_none());
         assert!(stepthrough.next().is_none());
 
         Ok(())

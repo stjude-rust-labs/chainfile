@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::io::BufRead;
+use std::ops::Range;
 
 use omics::coordinate::Contig;
 use omics::coordinate::Strand;
@@ -48,6 +49,14 @@ pub enum Error {
         found: Header,
     },
 
+    /// Two chain sections share the same ID and header but have different
+    /// alignment data.
+    #[error("duplicate chain id `{id}` with inconsistent alignment data")]
+    InconsistentChainData {
+        /// The chain ID.
+        id: usize,
+    },
+
     /// Two chain sections report different sizes for the same chromosome.
     #[error("conflicting sizes for chromosome `{contig}`: expected `{expected}`, found `{found}`")]
     ConflictingChromosomeSize {
@@ -90,6 +99,10 @@ impl Builder {
         let mut hm = HashMap::<Contig, Vec<Iv>>::default();
         let mut chains = HashMap::<usize, Header>::new();
 
+        // The segments for each chain are pushed contiguously, so each chain
+        // ID maps to the range of its segments within its contig's entries.
+        let mut segment_ranges = HashMap::<usize, Range<usize>>::new();
+
         let mut reference_chromosomes = ChromosomeDictionaryBuilder::default();
         let mut query_chromosomes = ChromosomeDictionaryBuilder::default();
 
@@ -97,6 +110,7 @@ impl Builder {
             let section = result.map_err(Error::InvalidSections)?;
 
             let header = section.header().clone();
+            let contig = Contig::new_unchecked(header.reference_sequence().chromosome_name());
 
             match chains.entry(header.id()) {
                 Entry::Occupied(e) => {
@@ -107,6 +121,25 @@ impl Builder {
                             found: header,
                         });
                     }
+
+                    // Since the headers match, the segments match if and only
+                    // if the alignment data match.
+                    let existing = &hm[&contig][segment_ranges[&header.id()].clone()];
+                    let mut duplicate = Vec::with_capacity(existing.len());
+                    push_segments(&section, &mut duplicate)?;
+
+                    if !existing
+                        .iter()
+                        .map(|iv| &iv.val)
+                        .eq(duplicate.iter().map(|iv| &iv.val))
+                    {
+                        return Err(Error::InconsistentChainData { id: header.id() });
+                    }
+
+                    // The section is an exact duplicate of one that was
+                    // already added, so adding its segments again would
+                    // duplicate them in the liftover results.
+                    continue;
                 }
                 Entry::Vacant(e) => {
                     e.insert(header.clone());
@@ -122,36 +155,10 @@ impl Builder {
                 header.reference_sequence().chromosome_size(),
             )?;
 
-            let contig = Contig::new_unchecked(header.reference_sequence().chromosome_name());
             let entry = hm.entry(contig).or_default();
-
-            for pair_result in section.stepthrough().map_err(Error::StepthroughError)? {
-                let pair = pair_result.map_err(Error::StepthroughError)?;
-
-                let (start, stop) = match pair.reference().strand() {
-                    Strand::Positive => {
-                        let start = pair.reference().start().position().get();
-                        let end = pair.reference().end().position().get();
-
-                        (start, end)
-                    }
-                    Strand::Negative => {
-                        let start = pair.reference().end().position().get();
-                        let end = pair.reference().start().position().get();
-
-                        (start, end)
-                    }
-                };
-
-                entry.push(lapper::Interval {
-                    start,
-                    stop,
-                    val: AnnotatedPair {
-                        chain_id: header.id(),
-                        pair,
-                    },
-                })
-            }
+            let start = entry.len();
+            push_segments(&section, entry)?;
+            segment_ranges.insert(header.id(), start..entry.len());
         }
 
         let mut inner = HashMap::<Contig, lapper::Lapper<Number, AnnotatedPair>>::new();
@@ -176,6 +183,38 @@ impl Default for Builder {
     fn default() -> Self {
         Self
     }
+}
+
+/// Steps through a section and pushes its liftover segments onto `entries`.
+#[expect(
+    clippy::result_large_err,
+    reason = "`Error` retains the conflicting chain headers"
+)]
+fn push_segments(section: &alignment::Section, entries: &mut Vec<Iv>) -> Result<()> {
+    let chain_id = section.header().id();
+
+    for pair_result in section.stepthrough().map_err(Error::StepthroughError)? {
+        let pair = pair_result.map_err(Error::StepthroughError)?;
+
+        let (start, stop) = match pair.reference().strand() {
+            Strand::Positive => (
+                pair.reference().start().position().get(),
+                pair.reference().end().position().get(),
+            ),
+            Strand::Negative => (
+                pair.reference().end().position().get(),
+                pair.reference().start().position().get(),
+            ),
+        };
+
+        entries.push(lapper::Interval {
+            start,
+            stop,
+            val: AnnotatedPair { chain_id, pair },
+        });
+    }
+
+    Ok(())
 }
 
 /// A builder for the size of the contigs in either the reference or query
@@ -221,6 +260,8 @@ impl ChromosomeDictionaryBuilder {
 
 #[cfg(test)]
 mod tests {
+    use omics::coordinate::interval::interbase::Interval;
+
     use super::*;
     use crate::Reader;
 
@@ -245,6 +286,46 @@ mod tests {
             b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\nchain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10";
         let reader = Reader::new(&data[..]);
         assert!(Builder.try_build_from(reader).is_ok());
+    }
+
+    #[test]
+    fn exact_duplicate_chains_are_not_double_counted() {
+        let data = b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n4\t2\t2\n4\n\n\
+                     chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n4\t2\t2\n4";
+        let machine = Builder.try_build_from(Reader::new(&data[..])).unwrap();
+
+        let results = machine
+            .liftover("seq0:+:0-10".parse::<Interval>().unwrap())
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].segments().len(), 2);
+    }
+
+    #[test]
+    fn identical_chains_with_different_ids_are_kept() {
+        let data = b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n10\n\n\
+                     chain 100 seq0 10 + 0 10 seq1 10 + 0 10 1\n10";
+        let machine = Builder.try_build_from(Reader::new(&data[..])).unwrap();
+
+        let results = machine
+            .liftover("seq0:+:0-10".parse::<Interval>().unwrap())
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn duplicate_chain_id_with_inconsistent_data() {
+        let data = b"chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n3\t1\t1\n6\n\n\
+                     chain 100 seq0 10 + 0 10 seq1 10 + 0 10 0\n4\t1\t1\n5";
+        let err = Builder.try_build_from(Reader::new(&data[..])).unwrap_err();
+
+        assert!(matches!(err, Error::InconsistentChainData { id: 0 }));
+        assert_eq!(
+            err.to_string(),
+            "duplicate chain id `0` with inconsistent alignment data"
+        );
     }
 
     #[test]

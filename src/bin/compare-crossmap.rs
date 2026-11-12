@@ -588,8 +588,6 @@ fn throw(args: &Args) -> Result<()> {
 
     let chainfile_load_elapsed = chainfile_load_start.elapsed();
     info!("chainfile: chain file loaded in {chainfile_load_elapsed:.2?}");
-    let query_contigs =
-        Chromosomes::new(machine.query_chromosomes(), args.canonical_chromosomes_only);
     let mut reference_contigs = Chromosomes::new(
         machine.reference_chromosomes(),
         args.canonical_chromosomes_only,
@@ -744,57 +742,15 @@ fn throw(args: &Args) -> Result<()> {
                             if pairs.reference().contains_entity(&coordinate) {
                                 warn!("      ↳ {}", pairs);
 
+                                // Negative-strand query coordinates are hard to
+                                // read, so also report them on the positive
+                                // strand.
                                 let query = pairs.into_query();
                                 if query.strand() == Strand::Negative {
-                                    // (1) Find the size of the chromosome the query
-                                    // sits on.
-                                    let (_, size) = query_contigs
-                                        .chromosomes
-                                        .iter()
-                                        .find(|(chromosome, _)| {
-                                            chromosome == query.contig().as_str()
-                                        })
-                                        .expect("this should be found");
-
-                                    // (2) Grab the existing coordinate parts.
-                                    let (old_start, old_end) = query.into_coordinates();
-                                    let (old_start_contig, old_start_strand, old_start_pos) =
-                                        old_start.into_parts();
-                                    let (old_end_contig, old_end_strand, old_end_pos) =
-                                        old_end.into_parts();
-
-                                    // (3) Invert them using the current chromosome
-                                    // size.
-
-                                    // SAFETY: this should always unwrap, as we
-                                    // constructed this coordinate on the opposite
-                                    // strand successfully (and none of the
-                                    // operations here should cause it to not
-                                    // construct—unless, of course, there is a bug).
-                                    let new_start = Coordinate::<Interbase>::new(
-                                        old_start_contig,
-                                        old_start_strand.complement(),
-                                        *size as Number - old_start_pos.get(),
+                                    warn!(
+                                        "        ↳ in other words, {}",
+                                        query.reverse_complement()
                                     );
-
-                                    // SAFETY: this should always unwrap, as we
-                                    // constructed this coordinate on the opposite
-                                    // strand successfully (and none of the
-                                    // operations here should cause it to not
-                                    // construct—unless, of course, there is a bug).
-                                    let new_end = Coordinate::<Interbase>::new(
-                                        old_end_contig,
-                                        old_end_strand.complement(),
-                                        *size as Number - old_end_pos.get(),
-                                    );
-
-                                    // SAFETY: this should always unwrap, as we
-                                    // constructed this interval on the opposite
-                                    // strand successfully (and none of the
-                                    // operations here should cause it to not
-                                    // construct—unless, of course, there is a bug).
-                                    let interval = Interval::try_new(new_start, new_end).unwrap();
-                                    warn!("        ↳ in other words, {}", interval);
                                 }
                             };
                         }

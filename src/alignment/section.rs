@@ -304,4 +304,28 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_sections_stop_after_error() {
+        let cases: &[&[u8]] = &[
+            // Blank line within a section.
+            b"chain 0 seq0 4 + 0 4 seq0 4 + 0 4 1\n3\t0\t0\n\n1\n",
+            // Header within a section.
+            b"chain 0 seq0 4 + 0 4 seq0 4 + 0 4 1\n3\t0\t0\nchain 0 seq0 4 + 0 4 seq0 4 + 0 4 \
+              2\n1\n",
+            // Unparseable line within a section.
+            b"chain 0 seq0 4 + 0 4 seq0 4 + 0 4 1\n3\t0\t0\n?\n1\n",
+            // Abrupt end within a section.
+            b"chain 0 seq0 4 + 0 4 seq0 4 + 0 4 1\n3\t0\t0",
+        ];
+
+        for data in cases {
+            let mut reader = Reader::new(io::Cursor::new(data));
+            let mut sections = reader.sections();
+
+            assert!(sections.next().unwrap().is_err());
+            assert!(sections.next().is_none());
+            assert!(sections.next().is_none());
+        }
+    }
 }

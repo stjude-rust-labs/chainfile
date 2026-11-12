@@ -73,6 +73,10 @@ enum State {
 
 /// An iterator struct the traverses the alignment sections while keeping
 /// track of the current state of the reader.
+///
+/// After the iterator yields an error, it stops and returns [`None`] on every
+/// subsequent call, since the position of the underlying reader within the
+/// file can no longer be trusted.
 #[derive(Debug)]
 pub struct Sections<'a, T>
 where
@@ -86,6 +90,9 @@ where
 
     /// The line number.
     line_no: usize,
+
+    /// Whether the iterator has yielded an error.
+    failed: bool,
 }
 
 impl<'a, T> Sections<'a, T>
@@ -98,17 +105,12 @@ where
             reader,
             state: State::InBetweenSections,
             line_no: 0usize,
+            failed: false,
         }
     }
-}
 
-impl<T> Iterator for Sections<'_, T>
-where
-    T: BufRead,
-{
-    type Item = Result<Section>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    /// Reads the next alignment section from the underlying reader.
+    fn read_section(&mut self) -> Option<Result<Section>> {
         let mut builder: Option<Builder> = None;
         let mut buffer = String::new();
 
@@ -136,7 +138,8 @@ where
                 },
             };
 
-            // (3) Gets the current state and errors out if we encounter a parse error.
+            // (3) Gets the current state and errors out if we encounter a parse
+            // error.
             self.state = match get_state(&self.state, &line, self.line_no) {
                 Ok(s) => s,
                 Err(err) => return Some(Err(err)),
@@ -149,15 +152,17 @@ where
                     match line {
                         Line::AlignmentData(record) => Some(inner_builder.push_data(record)),
                         Line::Empty => Some(inner_builder),
-                        // The `get_state()` method will throw an error in the step above
-                        // before this code is even reached. As such, this is unreachable.
+                        // The `get_state()` method will throw an error in the
+                        // step above before this code is even reached. As such,
+                        // this is unreachable.
                         Line::Header(_) => unreachable!(),
                     }
                 }
                 None => {
                     match line {
-                        // The `get_state()` method will throw an error in the step above
-                        // before this code is even reached. As such, this is unreachable.
+                        // The `get_state()` method will throw an error in the
+                        // step above before this code is even reached. As such,
+                        // this is unreachable.
                         Line::AlignmentData(_) => unreachable!(),
                         Line::Empty => None,
                         Line::Header(record) => {
@@ -184,6 +189,27 @@ where
                 State::ReadingSection => {}
             }
         }
+    }
+}
+
+impl<T> Iterator for Sections<'_, T>
+where
+    T: BufRead,
+{
+    type Item = Result<Section>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.failed {
+            return None;
+        }
+
+        let result = self.read_section();
+
+        if matches!(result, Some(Err(_))) {
+            self.failed = true;
+        }
+
+        result
     }
 }
 
