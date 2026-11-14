@@ -39,6 +39,14 @@
 
 ## Guiding Principles
 
+1. **Correct first.** Liftover results must be right. When a record can't be
+   lifted over safely, it is rejected with a reason rather than guessed at. CI
+   compares results against CrossMap on randomly generated data each run.
+2. **Then fast.** Speed matters, but never at the cost of correctness. On large
+   inputs, expect the command line tool to be roughly 50–70× faster than UCSC
+   `liftOver` and CrossMap for BED, and about 25× faster than CrossMap for VCF,
+   using all cores. On a single thread, expect roughly 3–9× faster.
+
 This crate is written in the style of
 [noodles](https://github.com/zaeleus/noodles), as it was originally intended to
 be included as a pull request. After discussion with the maintainer of noodles,
