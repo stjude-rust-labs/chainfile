@@ -14,10 +14,10 @@
       <img alt="crates.io version" src="https://img.shields.io/crates/v/chainfile">
     </a>
     <img alt="crates.io downloads" src="https://img.shields.io/crates/d/chainfile">
-    <a href="https://github.com/stjude-rust-labs/chainfile/blob/master/LICENSE-APACHE" target="_blank">
-      <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache 2.0-blue.svg" />
+    <a href="https://github.com/stjude-rust-labs/chainfile/blob/main/LICENSE-APACHE" target="_blank">
+      <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" />
     </a>
-    <a href="https://github.com/stjude-rust-labs/chainfile/blob/master/LICENSE-MIT" target="_blank">
+    <a href="https://github.com/stjude-rust-labs/chainfile/blob/main/LICENSE-MIT" target="_blank">
       <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" />
     </a>
   </p>
@@ -196,5 +196,5 @@ crates and command line tools made available by St. Jude Rust Labs.
 
 Copyright © 2023-Present [St. Jude Children's Research Hospital](https://github.com/stjude).
 
-[license-apache]: https://github.com/stjude-rust-labs/chainfile/blob/master/LICENSE-APACHE
-[license-mit]: https://github.com/stjude-rust-labs/chainfile/blob/master/LICENSE-MIT
+[license-apache]: https://github.com/stjude-rust-labs/chainfile/blob/main/LICENSE-APACHE
+[license-mit]: https://github.com/stjude-rust-labs/chainfile/blob/main/LICENSE-MIT
